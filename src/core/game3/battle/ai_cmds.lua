@@ -249,6 +249,7 @@ local function mon_types(battler)
   return t1, t2
 end
 
+local AbilitiesMod
 local function ability_of(battler)
   if not battler then return 0 end
   local a = battler.ability or battler.abilityId
@@ -257,9 +258,12 @@ local function ability_of(battler)
   end
   if type(a) == "number" then return a end
   if type(a) == "string" then
-    local ok, Abilities = pcall(require, "src.core.game3.battle.abilities")
-    if ok and Abilities and Abilities.id then
-      local okId, id = pcall(Abilities.id, a)
+    if AbilitiesMod == nil then
+      local ok, Abilities = pcall(require, "src.core.game3.battle.abilities")
+      AbilitiesMod = (ok and Abilities) or false
+    end
+    if AbilitiesMod and AbilitiesMod.id then
+      local okId, id = pcall(AbilitiesMod.id, a)
       if okId and id then return id end
     end
   end
@@ -283,25 +287,52 @@ local function pret_stat_level(battler, statId)
 end
 
 -- src/pokemon.c:2552
+local StateMod
 local function spread_hit(vm, moveId)
   local st = vm.st
   if not (st and st.double) then return nil end
   local m = Moves.get(moveId)
   if bit_and_local(tonumber(m and m.target) or 0, 0x08) == 0 then return nil end
-  local State = require("src.core.game3.battle.state")
+  local State = StateMod or require("src.core.game3.battle.state")
+  StateMod = State
   local id = State.idOf(vm.target)
   if id == nil then return nil end
   return State.countPresentOnSide(st, State.sideOf(id)) == 2 or nil
 end
 
+local function always_max_roll() return 100 end
+
+-- Damage per (attacker, defender, move) for the AI decision in progress.
+local damageMemo = nil
+
+function AiCmds.beginDecision() damageMemo = {} end
+function AiCmds.endDecision() damageMemo = nil end
+
 local function ai_damage(vm, moveId, movesetIndex)
-  local dmg = Damage.calc(vm.user, vm.target, moveId, {
-    forceCrit = false,
-    forceRoll = 100,
-    weather = vm.st and vm.st.weather,
-    rng = function() return 100 end,
-    spread = spread_hit(vm, moveId),
-  })
+  local dmg
+  local memo = damageMemo
+  local byTarget
+  if memo then
+    local byUser = memo[vm.user]
+    byTarget = byUser and byUser[vm.target]
+    dmg = byTarget and byTarget[moveId]
+  end
+  if dmg == nil then
+    dmg = Damage.calc(vm.user, vm.target, moveId, {
+      forceCrit = false,
+      forceRoll = 100,
+      weather = vm.st and vm.st.weather,
+      rng = always_max_roll,
+      spread = spread_hit(vm, moveId),
+    })
+    if memo and vm.user ~= nil and vm.target ~= nil and moveId ~= nil then
+      local byUser = memo[vm.user]
+      if not byUser then byUser = {}; memo[vm.user] = byUser end
+      byTarget = byUser[vm.target]
+      if not byTarget then byTarget = {}; byUser[vm.target] = byTarget end
+      byTarget[moveId] = dmg
+    end
+  end
   local sim = vm.simulatedRNG and vm.simulatedRNG[movesetIndex] or 100
   dmg = math.floor(dmg * sim / 100)
   if dmg == 0 then dmg = 1 end

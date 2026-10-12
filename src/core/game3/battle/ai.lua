@@ -2,6 +2,7 @@
 
 local bit = require("bit")
 local AiVm = require("src.core.game3.battle.ai_vm")
+local AiCmds = require("src.core.game3.battle.ai_cmds")
 local BattleProfile = require("src.core.game3.battle.profile")
 
 local choose_move_core
@@ -69,7 +70,7 @@ local function bit_or_flags(a, b)
   return bit.bor(math.floor(tonumber(a) or 0), math.floor(tonumber(b) or 0)) % 4294967296
 end
 
-local function run_scripts(pack, aiFlags, st, user, target, userSide, targetSide, scores, simulatedRNG, rng)
+local function run_scripts_inner(pack, aiFlags, st, user, target, userSide, targetSide, scores, simulatedRNG, rng)
   local aiAction = 0
   local logicId = 0
   local flags = to_u32(aiFlags)
@@ -100,6 +101,16 @@ local function run_scripts(pack, aiFlags, st, user, target, userSide, targetSide
     logicId = logicId + 1
   end
   return aiAction
+end
+
+-- AI damage is a pure function of battle state within one decision, so the
+-- script commands may memoise it; the memo never outlives this call.
+local function run_scripts(...)
+  AiCmds.beginDecision()
+  local ok, res = pcall(run_scripts_inner, ...)
+  AiCmds.endDecision()
+  if not ok then error(res, 0) end
+  return res
 end
 
 local MOVE_TARGET_BOTH = 0x08
