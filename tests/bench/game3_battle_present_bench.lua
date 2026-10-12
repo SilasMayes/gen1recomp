@@ -99,6 +99,27 @@ return function(game)
     end
   end
 
+  -- PBENCH_WRAP=1: report every warm-job slice longer than 12 ms with its key
+  if os.getenv("PBENCH_WRAP") == "1" then
+    local Warm = require("src.core.game3.warm")
+    local coKey = setmetatable({}, { __mode = "k" })
+    local origAdd = Warm.add
+    Warm.add = function(key, fn, priority)
+      return origAdd(key, function(...)
+        coKey[coroutine.running()] = key
+        return fn(...)
+      end, priority)
+    end
+    local origResume = coroutine.resume
+    coroutine.resume = function(co, ...)
+      local a = love.timer.getTime()
+      local r = { origResume(co, ...) }
+      local ms = (love.timer.getTime() - a) * 1000
+      if ms > 12 and coKey[co] then out("slow_warm_slice", coKey[co], string.format("%.1fms", ms)) end
+      return unpack(r)
+    end
+  end
+
   local t0 = love.timer.getTime()
   local ok, err = BattleBridge.startWild(Runtime._mod, game, { species = sp("ZIGZAGOON"), level = 45 }, { fade = false })
   if not ok then out("error", tostring(err)) love.event.quit(1) return end

@@ -112,11 +112,18 @@ local function section_damage()
   end
 end
 
+-- Rows are kept in a ring so the allocation escapes (LuaJIT would otherwise
+-- sink the old per-call table and make the lookup look free).
+local keep, keepN = {}, 0
 local function section_moves()
   for n = 1, ITER * 20 do
     local id = (n % (movesCount - 1)) + 1
     local ok, row = pcall(Moves.get, id)
-    if ok and row then mix(row.power or 0); mix(row.type or 0); mix(row.effect or 0) end
+    if ok and row then
+      keepN = (keepN % 64) + 1
+      keep[keepN] = row
+      mix(row.power or 0); mix(row.type or 0); mix(row.effect or 0)
+    end
     local okp, pr = pcall(Moves.priority, id)
     if okp then mix(pr or 0) end
   end

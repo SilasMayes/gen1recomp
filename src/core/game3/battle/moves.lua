@@ -27,7 +27,10 @@ local function const_name(romName)
   return (tostring(romName):upper():gsub("%s+", "_"):gsub("-", "_"))
 end
 
+local rowSrc, rowMove -- built rows (see from_rom), dropped whenever names are rebuilt
+
 local function build_names()
+  rowSrc, rowMove = {}, {}
   local Pokemon = require("src.core.game3.pokemon")
   local byNum, byName = {}, {}
   for id = 1, require("src.import.gba.versions").MOVES_COUNT - 1 do
@@ -131,16 +134,18 @@ function Moves.numForName(name)
 end
 
 -- Built rows are shared and read-only. Each entry remembers the source row it
--- was built from, so swapping link rows or reloading the ROM pack rebuilds it.
-local rowCache = {}
+-- was built from, so swapping link rows or reloading the ROM pack rebuilds it;
+-- a rebuilt name table (build_names) drops the lot.
+rowSrc, rowMove = rowSrc or {}, rowMove or {}
 
 local function from_rom(numId)
-  Moves.romReady()
-  if not Moves._rom then return nil end
-  local row = (Moves._linkRows and Moves._linkRows[numId]) or Moves._rom[numId]
+  if not Moves._romLoaded then Moves.romReady() end
+  local rom = Moves._rom
+  if not rom then return nil end
+  local links = Moves._linkRows
+  local row = (links and links[numId]) or rom[numId]
   if not row then return nil end
-  local hit = rowCache[numId]
-  if hit and hit.src == row and hit.names == Moves.BY_NUM[numId] then return hit.move end
+  if rowSrc[numId] == row then return rowMove[numId] end
   local cat = Types.isPhysical(row.type) and "physical" or "special"
   if (row.power or 0) == 0 then cat = "status" end
   local move = {
@@ -158,7 +163,7 @@ local function from_rom(numId)
     flags = row.flags,
     effectId = EffectIds.STATUS_SETUP[row.effect],
   }
-  rowCache[numId] = { src = row, names = move.id, move = move }
+  rowSrc[numId], rowMove[numId] = row, move
   return move
 end
 
