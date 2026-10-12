@@ -153,6 +153,46 @@ Types.TABLE = {
   ST, IC, 20, ST, RO, 20, ST, ST, 5, -1, -1, 0, N, GH, 0, FI, GH, 0,
 }
 
+-- Per-attack-type view of Types.TABLE, built lazily. Entries keep table order;
+-- `late` marks rows after the -1 sentinel, which foresight/odor-sleuth skips.
+local byAtk, byAtkSource, byAtkLen
+
+local function build_by_atk(t)
+  local out = {}
+  local late = false
+  for i = 1, #t, 3 do
+    local a = t[i]
+    if a == -1 then
+      late = true
+    else
+      local list = out[a]
+      if not list then list = {}; out[a] = list end
+      list[#list + 1] = { t[i + 1], t[i + 2], late }
+    end
+  end
+  byAtk, byAtkSource, byAtkLen = out, t, #t
+  return out
+end
+
+local NO_ENTRIES = {}
+
+local function modulate(flags, mult, dmg)
+  if dmg then
+    dmg = math.floor(dmg * mult / 10)
+    if dmg == 0 and mult ~= 0 then dmg = 1 end
+  end
+  if mult == 0 then
+    flags.immune = true
+    flags.super = false
+    flags.notVery = false
+  elseif mult == 5 and not flags.immune then
+    if flags.super then flags.super = false else flags.notVery = true end
+  elseif mult == 20 and not flags.immune then
+    if flags.notVery then flags.notVery = false else flags.super = true end
+  end
+  return dmg
+end
+
 -- pokefirered/src/battle_script_commands.c:1274
 function Types.typeCalc(atkType, def1, def2, dmg, foresight)
   atkType = tonumber(atkType) or 0
@@ -162,32 +202,22 @@ function Types.typeCalc(atkType, def1, def2, dmg, foresight)
   local flags = { super = false, notVery = false, immune = false }
   local product = 1
   local t = Types.TABLE
-  local function modulate(mult)
-    product = product * mult / 10
-    if dmg then
-      dmg = math.floor(dmg * mult / 10)
-      if dmg == 0 and mult ~= 0 then dmg = 1 end
+  local idx = byAtk
+  if idx == nil or byAtkSource ~= t or byAtkLen ~= #t then idx = build_by_atk(t) end
+  local list = idx[atkType] or NO_ENTRIES
+  for i = 1, #list do
+    local e = list[i]
+    if not (foresight and e[3]) then
+      local d, m = e[1], e[2]
+      if d == def1 then
+        product = product * m / 10
+        dmg = modulate(flags, m, dmg)
+      end
+      if d == def2 and def1 ~= def2 then
+        product = product * m / 10
+        dmg = modulate(flags, m, dmg)
+      end
     end
-    if mult == 0 then
-      flags.immune = true
-      flags.super = false
-      flags.notVery = false
-    elseif mult == 5 and not flags.immune then
-      if flags.super then flags.super = false else flags.notVery = true end
-    elseif mult == 20 and not flags.immune then
-      if flags.notVery then flags.notVery = false else flags.super = true end
-    end
-  end
-  local i = 1
-  while i <= #t do
-    local a, d, m = t[i], t[i + 1], t[i + 2]
-    if a == -1 then
-      if foresight then break end
-    elseif a == atkType then
-      if d == def1 then modulate(m) end
-      if d == def2 and def1 ~= def2 then modulate(m) end
-    end
-    i = i + 3
   end
   return dmg, flags, product
 end

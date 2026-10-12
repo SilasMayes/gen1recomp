@@ -130,14 +130,20 @@ function Moves.numForName(name)
   return byName[const_name(name)] or byName[name]
 end
 
+-- Built rows are shared and read-only. Each entry remembers the source row it
+-- was built from, so swapping link rows or reloading the ROM pack rebuilds it.
+local rowCache = {}
+
 local function from_rom(numId)
   Moves.romReady()
   if not Moves._rom then return nil end
   local row = (Moves._linkRows and Moves._linkRows[numId]) or Moves._rom[numId]
   if not row then return nil end
+  local hit = rowCache[numId]
+  if hit and hit.src == row and hit.names == Moves.BY_NUM[numId] then return hit.move end
   local cat = Types.isPhysical(row.type) and "physical" or "special"
   if (row.power or 0) == 0 then cat = "status" end
-  return {
+  local move = {
     id = Moves.constName(numId) or error("no ROM name for move " .. tostring(numId)),
     numId = numId,
     power = row.power,
@@ -152,6 +158,8 @@ local function from_rom(numId)
     flags = row.flags,
     effectId = EffectIds.STATUS_SETUP[row.effect],
   }
+  rowCache[numId] = { src = row, names = move.id, move = move }
+  return move
 end
 
 -- src/data/battle_moves.h:1

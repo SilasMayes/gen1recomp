@@ -1,5 +1,6 @@
 -- FireRed 1:1 battle AI — BattleAI_ChooseMoveOrAction scoring loop.
 
+local bit = require("bit")
 local AiVm = require("src.core.game3.battle.ai_vm")
 local BattleProfile = require("src.core.game3.battle.profile")
 
@@ -61,18 +62,11 @@ local function to_u32(n)
 end
 
 local function bit_and_flags(a, b)
-  a, b = to_u32(a), to_u32(b)
-  local r, bitv = 0, 1
-  for _ = 1, 32 do
-    if (a % 2) > 0 and (b % 2) > 0 then r = r + bitv end
-    a, b, bitv = math.floor(a / 2), math.floor(b / 2), bitv * 2
-  end
-  return r
+  return bit.band(math.floor(tonumber(a) or 0), math.floor(tonumber(b) or 0)) % 4294967296
 end
 
 local function bit_or_flags(a, b)
-  a, b = to_u32(a), to_u32(b)
-  return to_u32(a + b - bit_and_flags(a, b))
+  return bit.bor(math.floor(tonumber(a) or 0), math.floor(tonumber(b) or 0)) % 4294967296
 end
 
 local function run_scripts(pack, aiFlags, st, user, target, userSide, targetSide, scores, simulatedRNG, rng)

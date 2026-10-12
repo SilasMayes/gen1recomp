@@ -1,5 +1,6 @@
 -- FireRed battle AI command handlers (port of battle_ai_script_commands.c).
 
+local bit = require("bit")
 local Moves = require("src.core.game3.battle.moves")
 local Pokemon = require("src.core.game3.pokemon")
 local Types = require("src.core.game3.battle.types")
@@ -9,25 +10,11 @@ local EffectIds = require("src.core.game3.battle.effect_ids")
 local AiCmds = {}
 
 local function bit_or_local(a, b)
-  a = math.floor(a or 0)
-  b = math.floor(b or 0)
-  local r, bitv = 0, 1
-  for _ = 1, 32 do
-    if (a % 2) > 0 or (b % 2) > 0 then r = r + bitv end
-    a, b, bitv = math.floor(a / 2), math.floor(b / 2), bitv * 2
-  end
-  return r
+  return bit.bor(math.floor(a or 0), math.floor(b or 0)) % 4294967296
 end
 
 local function bit_and_local(a, b)
-  a = math.floor(a or 0)
-  b = math.floor(b or 0)
-  local r, bitv = 0, 1
-  for _ = 1, 32 do
-    if (a % 2) > 0 and (b % 2) > 0 then r = r + bitv end
-    a, b, bitv = math.floor(a / 2), math.floor(b / 2), bitv * 2
-  end
-  return r
+  return bit.band(math.floor(a or 0), math.floor(b or 0)) % 4294967296
 end
 
 -- pret STATUS1 bits
