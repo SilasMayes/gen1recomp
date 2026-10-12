@@ -643,6 +643,9 @@ function Battle.start(opts)
   end
   Anim.syncDisplayFromState(st)
   Battle._st = st
+  if not opts.headless then
+    pcall(function() require("src.core.game3.prewarm").battleMons(st) end)
+  end
   st.resultPolicy = BattleProfile.of(st).results
   if st.resultPolicy then st.battleResults = st.resultPolicy.new() end
   st.onResultsReady = opts.onResultsReady

@@ -8,6 +8,7 @@ local BallOpen = require("src.core.game3.battle.ball_open")
 local AnimPal = require("src.core.game3.battle.anim_pal")
 local AnimCoords = require("src.core.game3.battle.anim_coords")
 local SE = require("src.core.game3.se_ids")
+local Warm = require("src.core.game3.warm")
 
 local function fallback_prefix()
   return require("src.core.game3.battle.profile").get().animCacheFallback or nil
@@ -689,6 +690,7 @@ local function hydrate_tag_images(pack)
   local root = "data/generated/gba/pokemon/battle_anims/"
   for tag, info in pairs(pack.tags) do
     if type(info) == "table" and not info.image and info.file then
+      Warm.yield()
       local bytes = nil
       local rel = root .. info.file
       if cache and cache.read then
@@ -719,9 +721,7 @@ local function hydrate_tag_images(pack)
   end
 end
 
-local function load_pack()
-  if Anim._packLoaded then return Anim._pack end
-  Anim._packLoaded = true
+local function load_pack_body()
   local chunk
   local ok, Dataset = pcall(require, "src.core.game3.dataset")
   local cache = ok and Dataset.cache and Dataset.cache() or nil
@@ -760,6 +760,67 @@ local function load_pack()
   Anim._pack = chunk
   if Anim._vm and chunk then Anim._vm:setPack(chunk) end
   return chunk
+end
+
+local PACK_JOB = "battle:anim_pack"
+
+-- The pack can be loaded ahead of the first move by a Warm job that yields
+-- between tag decodes; a move that starts mid-load finishes the job instead of
+-- seeing a half-built pack.
+local function load_pack()
+  if Anim._packLoaded then return Anim._pack end
+  if Anim._packBusy then
+    Warm.flush(PACK_JOB)
+    return Anim._pack
+  end
+  Anim._packBusy = true
+  local ok, res = pcall(load_pack_body)
+  Anim._packBusy = false
+  Anim._packLoaded = true
+  if not ok then error(res, 0) end
+  return res
+end
+
+--- Queue the pack load on the Warm budget (call at battle start).
+function Anim.warmPack(priority)
+  if Anim._packLoaded or Anim._packBusy or Warm.pending(PACK_JOB) then return false end
+  return Warm.add(PACK_JOB, function() load_pack() end, priority or 2)
+end
+
+local SE_OPS = {
+  playse = true, playsewithpan = true, loopsewithpan = true, waitplaysewithpan = true,
+  panse = true, panse_adjustnone = true, panse_adjustall = true,
+}
+local JUMP_OPS = { call = true, ["goto"] = true }
+
+--- Sound effect ids a move's animation script plays directly (nil if none).
+-- Loads the pack when needed, so call it from a Warm job.
+function Anim.seIdsForMove(moveId)
+  local ids, seenSe, seenLabel = nil, {}, {}
+  local function scan(script, depth)
+    for i = 1, #script do
+      local op = script[i]
+      local kind = op.op
+      if SE_OPS[kind] then
+        local id = op.song or op.se or op.id or op[1]
+        if id ~= nil and not seenSe[id] then
+          seenSe[id] = true
+          ids = ids or {}
+          ids[#ids + 1] = id
+        end
+      elseif JUMP_OPS[kind] and depth < 4 then
+        local label = op.label or op.target
+        local pack = Anim._pack
+        local sub = label ~= nil and pack and pack.labels and pack.labels[label]
+        if sub and not seenLabel[label] then
+          seenLabel[label] = true
+          scan(sub, depth + 1)
+        end
+      end
+    end
+  end
+  scan(Anim.scriptForMove(moveId), 0)
+  return ids
 end
 
 function Anim.loadPack(pack)

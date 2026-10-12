@@ -5,7 +5,7 @@ Prewarm.FIELD_SE = { "SE_SELECT", "SE_WIN_OPEN", "SE_WALL_HIT", "SE_EXIT", "SE_R
   "SE_SLIDING_DOOR", "SE_PIN" }
 
 Prewarm.BATTLE_SE = { "SE_BALL_OPEN", "SE_BALL_THROW", "SE_FAINT", "SE_NOT_EFFECTIVE", "SE_EFFECTIVE",
-  "SE_SUPER_EFFECTIVE", "SE_EXP" }
+  "SE_SUPER_EFFECTIVE", "SE_EXP", "SE_M_STAT_INCREASE", "SE_M_STAT_DECREASE" }
 
 Prewarm.MODULES = {
   "src.core.game3.party", "src.core.game3.trainer_sight", "src.core.game3.warp",
@@ -69,6 +69,49 @@ local function lead_of(party)
   end
 end
 
+-- Queue the sound effects the animation scripts of these mons' moves play, so
+-- the first use of each does not stall on a synchronous bake. The animation
+-- pack is queued ahead of this by Prewarm.battle.
+local function warm_move_assets(mons)
+  local moves, seen = {}, {}
+  for _, mon in ipairs(mons) do
+    for _, mv in ipairs(type(mon) == "table" and type(mon.moves) == "table" and mon.moves or {}) do
+      if mv ~= 0 and mv ~= "" and not seen[mv] then
+        seen[mv] = true
+        moves[#moves + 1] = mv
+      end
+    end
+  end
+  if #moves == 0 then return end
+  Warm.add("battle:move_se:" .. table.concat(moves, ","), function()
+    local Anim = require("src.core.game3.battle.anim")
+    local Audio = package.loaded["src.core.game3.audio"]
+    if not Audio then return end
+    for _, mv in ipairs(moves) do
+      local ok, ids = pcall(Anim.seIdsForMove, mv)
+      if ok and ids then
+        for _, id in ipairs(ids) do Audio.prewarmSe(id, 3) end
+      end
+      Warm.yield()
+    end
+  end, 3)
+end
+
+--- Called once the battle state exists, when every active mon's moves are known.
+function Prewarm.battleMons(st)
+  if type(st) ~= "table" or not package.loaded["src.core.game3.audio"] then return end
+  local mons = {}
+  for _, b in pairs(type(st.battlers) == "table" and st.battlers or {}) do
+    if type(b) == "table" and type(b.mon) == "table" then mons[#mons + 1] = b.mon end
+  end
+  if #mons == 0 then
+    for _, b in ipairs({ st.player or false, st.enemy or false }) do
+      if type(b) == "table" and type(b.mon) == "table" then mons[#mons + 1] = b.mon end
+    end
+  end
+  warm_move_assets(mons)
+end
+
 function Prewarm.battle(session, foe)
   local Audio = package.loaded["src.core.game3.audio"]
   if not Audio then return end
@@ -79,6 +122,8 @@ function Prewarm.battle(session, foe)
   local first = foe and ((type(foe.party) == "table" and foe.party[1]) or foe)
   if species_of(first) then Audio.prewarmCry(species_of(first), 0, 25, 1) end
   se_list(Prewarm.BATTLE_SE, 2)
+  local okA, Anim = pcall(require, "src.core.game3.battle.anim")
+  if okA and Anim.warmPack then Anim.warmPack(2) end
 end
 
 function Prewarm.battleStart(opts)
