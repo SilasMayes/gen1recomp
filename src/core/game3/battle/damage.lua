@@ -9,6 +9,11 @@ local ModRuntime = require("src.mods.Runtime")
 
 local Damage = {}
 
+local HeldItemsMod, ProfileMod, LinkGuardMod, AdapterMod
+local function held_items() HeldItemsMod = HeldItemsMod or require("src.core.game3.battle.held_items"); return HeldItemsMod end
+local function battle_profile() ProfileMod = ProfileMod or require("src.core.game3.battle.profile"); return ProfileMod end
+local function link_guard() LinkGuardMod = LinkGuardMod or require("src.core.game3.battle.link_guard"); return LinkGuardMod end
+
 -- pokefirered/src/pokemon.c:1442
 local STAGE_RATIO = {
   [-6] = { 10, 40 }, [-5] = { 10, 35 }, [-4] = { 10, 30 }, [-3] = { 10, 25 },
@@ -110,7 +115,7 @@ local function roll_from(rng, lo, hi)
       print("[game3/damage] rng call failed: " .. tostring(v))
     end
   end
-  return require("src.core.game3.battle.link_guard").fallback("damage.roll", lo, hi)
+  return link_guard().fallback("damage.roll", lo, hi)
 end
 
 local function ability_of(battler, adapter)
@@ -119,8 +124,14 @@ local function ability_of(battler, adapter)
   if battler.expTracedAbility then return battler.expTracedAbility end
   local id = battler.ability or (battler.mon and (battler.mon.ability or battler.mon.abilityId))
   if type(id) == "string" then return (id:upper():gsub("%s+", "_")) end
-  local ok, Adapter = pcall(require, "src.core.game3.battle.adapter")
-  if ok and Adapter and Adapter.ABILITY_BY_ID and tonumber(id) then return Adapter.ABILITY_BY_ID[tonumber(id)] end
+  local num = tonumber(id)
+  if not num then return nil end
+  if not AdapterMod then
+    local ok, Adapter = pcall(require, "src.core.game3.battle.adapter")
+    if not (ok and Adapter) then return nil end
+    AdapterMod = Adapter
+  end
+  if AdapterMod.ABILITY_BY_ID then return AdapterMod.ABILITY_BY_ID[num] end
   return nil
 end
 
@@ -159,6 +170,8 @@ function Damage.flailPower(hp, maxHp)
   return 20
 end
 
+local LOW_KICK_TABLE = { { 100, 20 }, { 250, 40 }, { 500, 60 }, { 1000, 80 }, { 2000, 100 } }
+
 -- pokefirered/src/battle_script_commands.c:9074
 function Damage.lowKickPower(dMon, defender)
   local wt
@@ -170,8 +183,8 @@ function Damage.lowKickPower(dMon, defender)
     local dex = sp and Pokemon.dexEntry(sp)
     wt = dex and tonumber(dex.weight) or 0
   end
-  local tbl = { { 100, 20 }, { 250, 40 }, { 500, 60 }, { 1000, 80 }, { 2000, 100 } }
-  for _, row in ipairs(tbl) do
+  for i = 1, #LOW_KICK_TABLE do
+    local row = LOW_KICK_TABLE[i]
     if row[1] > wt then return row[2] end
   end
   return 120
@@ -207,7 +220,7 @@ function Damage.base(attacker, defender, move, opts)
   local Engine = package.loaded["src.core.game3.battle.engine"]
   local k = st and st.kinds or {}
   -- pokeemerald/src/pokemon.c:3407
-  local noBoost = st and require("src.core.game3.battle.profile").isRse(st)
+  local noBoost = st and battle_profile().isRse(st)
     and (st.eReader or st.secretBase or k.frontier or k.recordedLink)
   if st and Engine and Engine.hasBadge and not noBoost then
     if attacker.side == "player" and Engine.hasBadge(st, 1) then attack = math.floor(110 * attack / 100) end
@@ -215,7 +228,7 @@ function Damage.base(attacker, defender, move, opts)
     if attacker.side == "player" and Engine.hasBadge(st, 7) then spAttack = math.floor(110 * spAttack / 100) end
     if defender.side == "player" and Engine.hasBadge(st, 7) then spDefense = math.floor(110 * spDefense / 100) end
   end
-  local HeldItems = require("src.core.game3.battle.held_items")
+  local HeldItems = held_items()
   local HOLD = HeldItems.HOLD
   local aHe, aParam = HeldItems.of(attacker)
   local dHe = HeldItems.of(defender)
@@ -363,7 +376,7 @@ function Damage.calc(attacker, defender, moveId, opts)
   local dmgMultiplier = tonumber(opts.dmgMultiplier) or 1
   local magnitudeVal = nil
   local weatherKind = opts.weatherKind or Rules.weather.kind(opts.weather)
-  local rng = opts.rng or require("src.core.game3.battle.link_guard").source("damage.calc", math.random)
+  local rng = opts.rng or link_guard().source("damage.calc", math.random)
   local level = tonumber(aMon.level or attacker.level) or 5
 
   if power <= 0 and not opts.power then

@@ -10,9 +10,20 @@ local function resolve_move_id(mv)
   return require("src.core.game3.battle.moves").numForName(mv) or 0
 end
 
+local VM = {}
+VM.__index = VM
+
+function VM:jump(name, ip)
+  local body = self.pack and self.pack.scripts and self.pack.scripts[name]
+  if not body then error("battle AI: no script " .. tostring(name) .. " in the pack") end
+  self.scriptName = name
+  self.ops = body
+  self.ip = ip or 1
+end
+
 function AiVm.new(opts)
   opts = opts or {}
-  local vm = {
+  local vm = setmetatable({
     pack = opts.pack,
     st = opts.st,
     user = opts.user,     -- enemy battler
@@ -31,15 +42,7 @@ function AiVm.new(opts)
     done = false,
     aiAction = 0,
     rng = opts.rng or require("src.core.game3.battle.link_guard").source("ai_vm.rng", math.random),
-  }
-
-  function vm:jump(name, ip)
-    local body = self.pack and self.pack.scripts and self.pack.scripts[name]
-    if not body then error("battle AI: no script " .. tostring(name) .. " in the pack") end
-    self.scriptName = name
-    self.ops = body
-    self.ip = ip or 1
-  end
+  }, VM)
 
   return vm
 end
