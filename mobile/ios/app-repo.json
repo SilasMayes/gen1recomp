@@ -13,6 +13,13 @@
       "category": "games",
       "versions": [
         {
+          "version": "0.3.96",
+          "date": "2026-10-23",
+          "size": 44711034,
+          "downloadURL": "https://github.com/bryanthaboi/gen1recomp/releases/download/v0.3.96/gen1recomp++-0.3.96-ios.ipa",
+          "localizedDescription": "honestly RIP zaboomafoo we will never forget u\n\n## Issues closed\n\n- #3036 Gen2: a mod can't add a phone contact\n- #3037 Mods can't change Gen2 shops (no registry for data.gen2Marts)\n- #3038 Gen 2: new species and items get no script number (index capped at 255, never assigned)\n- #3040 FRLG: Hoenn species + Celebi play the wrong cries\n- #3042 Goldenrod game corner card game bugs\n- #3043 Emerald Isn't Available on Switch\n- #3046 (Modding API) mod.options:define doesn't work anymore\n\n## Contributors\n\n- @bryanthaboi\n- @Nexhas28\n- @poooooby"
+        },
+        {
           "version": "0.3.95",
           "date": "2026-10-21",
           "size": 44713427,
