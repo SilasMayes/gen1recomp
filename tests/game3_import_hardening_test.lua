@@ -84,7 +84,7 @@ print("[test] 2. RomExtractorGen3 stage gating")
 local Json = require("src.link.Json")
 local SHA1 = "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc"
 
-local function loadExtractorWithStubs(pokeRun, sectionsRun)
+local function loadExtractorWithStubs(pokeRun, sectionsRun, portableRoot)
   for name in pairs(package.loaded) do
     if name:find("src.import.RomExtractorGen3", 1, true) then
       package.loaded[name] = nil
@@ -94,6 +94,7 @@ local function loadExtractorWithStubs(pokeRun, sectionsRun)
   local seenImports = {}
   package.loaded["src.import.CacheFs"] = {
     prefix = "",
+    root = function() return portableRoot end,
     write = function(rel, data) files[rel] = data; return true end,
     read = function(rel) return files[rel] end,
     exists = function(rel) return files[rel] ~= nil end,
@@ -209,6 +210,18 @@ local shared = loadExtractorWithStubs(function() return {} end)
 local a = shared:sharedImports(SHA1)
 local b = shared:sharedImports(SHA1)
 check(a == b, "sharedImports returns the same table on every stage")
+
+print("[test] 3b. a portable install creates no cache folders in the save dir")
+local realLove = _G.love
+local saveDirDirs = {}
+_G.love = { filesystem = { createDirectory = function(p) saveDirDirs[#saveDirDirs + 1] = p; return true end } }
+local portable = loadExtractorWithStubs(function() return {} end, nil, "/portable/game")
+portable:writeRequiredMarkers(SHA1)
+check(#saveDirDirs == 0, "a portable install leaves the save dir alone (" .. #saveDirDirs .. " folders created)")
+local standard = loadExtractorWithStubs(function() return {} end)
+standard:writeRequiredMarkers(SHA1)
+check(#saveDirDirs > 0, "a standard install still creates its cache folders in the save dir")
+_G.love = realLove
 
 package.loaded["src.import.CacheFs"] = nil
 package.loaded["src.import.LuaWriter"] = nil

@@ -210,8 +210,10 @@ function RomExtractorGen3:writeRequiredMarkers(sha1)
     LuaWriter.write("data/generated/audio.lua", { stub = true })
   end
 
+  -- A portable install keeps the cache in the game folder (CacheFs creates
+  -- each file's parents there), so don't mirror the tree into the save dir.
   for _, d in ipairs(self.plan.dirs or {}) do
-    if love and love.filesystem and love.filesystem.createDirectory then
+    if not CacheFs.root() and love and love.filesystem and love.filesystem.createDirectory then
       local p = (CacheFs.prefix or "") .. GBA_ROOT .. d
       pcall(love.filesystem.createDirectory, p)
     end
