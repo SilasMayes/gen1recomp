@@ -132,7 +132,8 @@ end
 local STAT_FIELDS = fields("hp attack defense speed special specialAttack specialDefense")
 local MON_FIELDS = fields("id name dex index types baseStats catchRate baseExp growthRate "
   .. "level1Moves learnset evolutions tmhm spriteFront spriteBack frontSize dexEntry "
-  .. "eggMoves genderRatio eggCycles itemCommon itemRare trueColor native")
+  .. "eggMoves genderRatio eggCycles itemCommon itemRare trueColor "
+  .. "battleScaleFront battleScaleBack native")
 local MOVE_FIELDS = fields("id name index type power accuracy pp effect category priority "
   .. "secondaryChance description native")
 local ITEM_FIELDS = fields("id name index price machine effect ball tossable needsTarget "
@@ -390,6 +391,11 @@ local function monWrite(value, old, generation, patch)
   elseif value.frontSize ~= nil then refuse("frontSize has no Gen 3 representation") end
   if generation == 3 and value.trueColor ~= nil and value.trueColor ~= (old or {}).trueColor then
     refuse("trueColor has no Gen 3 representation")
+  end
+  for _, key in ipairs({ "battleScaleFront", "battleScaleBack" }) do
+    if generation == 3 and value[key] ~= nil and value[key] ~= (old or {})[key] then
+      refuse(key .. " has no Gen 3 representation")
+    end
   end
   return out
 end

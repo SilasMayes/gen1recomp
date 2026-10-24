@@ -217,6 +217,14 @@ assert(artwork == extensionReason)
 if mod.generation == 3 then
   unsupported(content.pokemon:patch("MEW", { trueColor = true }))
   unsupported(content.pokemon:patch("MEW", { frontSize = 5 }))
+  unsupported(content.pokemon:patch("MEW", { battleScaleBack = 1.5 }))
+else
+  must(content.pokemon:patch("MEW", { battleScaleFront = 1.25, battleScaleBack = 1.5 }))
+  assert(content.pokemon:get("MEW").battleScaleFront == 1.25
+    and content.pokemon:get("MEW").battleScaleBack == 1.5)
+  rejected(function() return content.pokemon:patch("MEW", { battleScaleBack = 9 }) end)
+  assert(content.pokemon:get("MEW").battleScaleBack == 1.5)
+  must(content.pokemon:patch("MEW", { battleScaleFront = mod.DELETE, battleScaleBack = mod.DELETE }))
 end
 
 rejected(function()
