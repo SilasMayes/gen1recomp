@@ -13,6 +13,13 @@
       "category": "games",
       "versions": [
         {
+          "version": "0.3.97",
+          "date": "2026-10-26",
+          "size": 44714538,
+          "downloadURL": "https://github.com/bryanthaboi/gen1recomp/releases/download/v0.3.97/gen1recomp++-0.3.97-ios.ipa",
+          "localizedDescription": "… CLOSES #3059, CLOSES #3061, CLOSES #3062\n\n## Issues closed\n\n- #3048 emerald data gets imported twice on portable installation\n- #3049 (Modding API v3) battleScaleBack causes error in gen2 games\n- #3055 mod.datasets:open(\"crystal\") rejects Crystal's pokemon data over its tutorMoves table\n- #3057 Mod update fails with \"string length overflow\" when baseroms/ holds a ~2 GiB import\n- #3058 mod.datasets: Gen 2's fishing art (menu_gfx emotes) can't be reached\n- #3059 Oak music in Gold starts too early\n- #3061 CD icons for Dark TMs in the TM Case are invisible.\n- #3062 Event Pokemon are missing the \"Fateful Encounter\" flag\n\n## Contributors\n\n- @bryanthaboi"
+        },
+        {
           "version": "0.3.96",
           "date": "2026-10-23",
           "size": 44711034,
