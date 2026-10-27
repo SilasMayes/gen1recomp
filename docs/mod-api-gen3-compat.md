@@ -167,6 +167,15 @@ Plain Pixel by default), `size`, `spacing`, `yOffset`, `bold` and `tiles`
 (characters that keep their ROM glyph). The ROM's special glyphs, control
 codes and the Japanese sheet are untouched.
 
+`render_pipelines` run both halves on Gen 3. `present` and `worldPresent`
+fold over the frame as on Gen 1. `drawWorld` is served only to a record
+that lists `generations = { 3 }`: the Gen 3 world pass
+(`src/core/game3/world_pipeline.lua`, called from `display.lua` after the
+flat field draws) hands its own ctx of cells, ROM metatile atlases, actors
+and overlays rather than the Gen 1 one, so a record written for Gen 1 or Gen
+2 stays off the OPTION menu here. See
+[Rendering pipelines, On Gen 3](modding.md#on-gen-3).
+
 `tilesets` stays gated. Gen 3 maps are 16px metatiles from a primary and a
 secondary tileset whose tile art, palettes and behaviours are baked per pair
 into layered atlases (`tileset_native`); there is no per-tile block table or

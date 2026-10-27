@@ -2249,6 +2249,26 @@ function R.draw(camX, camY, canvasW, canvasH, exchangeCanvas)
   love.graphics.setColor(1, 1, 1, 1)
 end
 
+-- Both sprite priorities and no colour-map pass (FieldWeather.drawOverlay):
+-- the colour map remaps the field canvas it is drawn over, and an overlay
+-- for another compositor has none.  The camera R.draw set this frame stands.
+function R.drawOverlay(camX, camY, canvasW, canvasH)
+  if not S.started or not S.initialized then return end
+  local A = loadAssets()
+  if not A then return end
+  canvasW = canvasW or SCREEN_W
+  canvasH = canvasH or SCREEN_H
+  local ox = math.floor((canvasW - SCREEN_W) / 2)
+  local oy = math.floor((canvasH - SCREEN_H) / 2)
+  love.graphics.push("all")
+  drawPriority2(A, camX, camY, ox, oy, canvasW, canvasH)
+  love.graphics.pop()
+  love.graphics.push("all")
+  drawPriority1(A, ox, oy, canvasW, canvasH)
+  love.graphics.pop()
+  love.graphics.setColor(1, 1, 1, 1)
+end
+
 R.WEATHER = {
   NONE = WEATHER_NONE, SUNNY_CLOUDS = WEATHER_SUNNY_CLOUDS, SUNNY = WEATHER_SUNNY, RAIN = WEATHER_RAIN,
   SNOW = WEATHER_SNOW, RAIN_THUNDERSTORM = WEATHER_RAIN_THUNDERSTORM, FOG_HORIZONTAL = WEATHER_FOG_HORIZONTAL,

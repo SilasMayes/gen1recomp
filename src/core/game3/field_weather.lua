@@ -130,6 +130,23 @@ function FieldWeather.drawBelow(camX, camY, canvasW, canvasH)
   if E then E.drawBelow(camX or 0, camY or 0, canvasW or W, canvasH or H) end
 end
 
+--- The weather's sprites (rain, snow, ash, sand, fog, clouds) without the
+-- palette pass, for a compositor that is not the field's own canvas -- a
+-- world render pipeline lays them over its scene in screen space.  Draw
+-- only: the simulation advances in update(), so a second draw in a frame
+-- is free of side effects.
+function FieldWeather.drawOverlay(camX, camY, canvasW, canvasH)
+  if Weather.isSuspended() then return end
+  local E = Weather.rseEngine()
+  if E then
+    if E.drawOverlay then E.drawOverlay(camX or 0, camY or 0, canvasW or W, canvasH or H) end
+    return
+  end
+  -- SHADE is a multiply over the field image, which an overlay has none of
+  if FieldWeather._current == Weather.SHADE then return end
+  FieldWeather.draw(camX, camY, canvasW, canvasH)
+end
+
 function FieldWeather.draw(camX, camY, canvasW, canvasH, exchangeCanvas)
   if Weather.isSuspended() then return end
   local E = Weather.rseEngine()

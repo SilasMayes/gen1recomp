@@ -388,6 +388,12 @@ local function presentPlanes(game)
     love.graphics.pop()
   end
   Renderer:endWorldPass()
+  -- A mod's world render pipeline draws the field its own way from here.
+  -- The flat pass above still ran: it keeps the field's per-frame
+  -- bookkeeping going and is the frame shown whenever the pipeline
+  -- declines, throws or sits out a transition (world_pipeline.lua).
+  local override = require("src.core.game3.world_pipeline").draw(game, Renderer, vw, vh)
+  if override then Renderer:setWorldOverride(override) end
 
   love.graphics.push("all")
   love.graphics.origin()

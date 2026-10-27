@@ -6719,6 +6719,7 @@ function OverworldState:drawWorld()
     local fxBirdFn = function() return fxBird(self, cam) end
     local fxRodFn = function() return fxRod(self, cam) end
     local ctx = {
+      generation = 1,
       state = self, cam = cam, vw = vw, vh = vh, bgY = bgY,
       width = pw, height = ph, scale = pscale,
       level = Pipelines.level(pipelineId),

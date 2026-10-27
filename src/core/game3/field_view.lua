@@ -257,6 +257,9 @@ local function playerPixels(game)
   return 0, 0, "down", 0, false, nil, 0, 0
 end
 
+-- read by src/core/game3/world_pipeline.lua for ctx.player
+FieldView.playerPixels = playerPixels
+
 local function facingFromObj(obj)
   local r = tostring(obj.facing or obj.range or "DOWN"):lower()
   if r == "up" or r == "down" or r == "left" or r == "right" then
@@ -566,6 +569,9 @@ FieldView.applyDrawOrder = applyDrawOrder
 local owOpts = {}
 
 local function weatherMask()
+  -- an actor drawn for some other compositor (FieldView.actorList) is not on
+  -- the field canvas the weather colour map reads, so it writes no mask
+  if FieldView._offField then return nil end
   local W = package.loaded["src.core.game3.field_weather_rse"]
   return W and W.maskActive and W.maskActive() and W or nil
 end
@@ -770,6 +776,65 @@ local function collectGame3Actors(game, mapDef, camX, camY, px, py, facing, walk
   return applyDrawOrder(actors, frameUnder, frameOver, camY)
 end
 
+-- Draw one collected actor through the vanilla path with its foot -- the
+-- bottom centre of the 16px cell it stands on, (a.x + 8, a.y + 16) -- on
+-- (ox, oy) of whatever canvas is bound.  The camera is chosen to put it
+-- there, so every draw route (OW sheets, SpriteRenderer, a mod actor's own
+-- draw, a field effect's closure) lands the same way without knowing.
+local function drawActorAt(game, mapDef, a, ox, oy)
+  local billboard, offField = FieldView._billboard, FieldView._offField
+  FieldView._billboard, FieldView._offField = nil, true
+  local ok, err = pcall(drawSingleActor, game, mapDef, a, a.x + CELL / 2 - ox, a.y + CELL - oy)
+  FieldView._billboard, FieldView._offField = billboard, offField
+  love.graphics.setColor(1, 1, 1, 1)
+  if not ok then error(err, 0) end
+end
+
+local actorEntries, actorEntryCount = {}, 0
+
+--- The actors the last field draw placed, for a compositor that stands them
+-- in a scene of its own (a world render pipeline: see
+-- src/core/game3/world_pipeline.lua).  Same collection, layer split and
+-- order as FieldView.draw.  Each entry is
+--   { x, y, ground, over, kind, sortY, draw }
+-- where (x, y) is the actor's foot in world pixels (current-map space),
+-- ground is that foot's y with any hop / jump-arc / surf-bob offset taken
+-- back out (so lift = ground - y), over is true for actors the cart draws
+-- above the BG1 overhead layer, and draw(ox, oy) renders the actor through
+-- the vanilla draw path with its foot on (ox, oy) of the bound canvas.
+-- Entries borrow this frame's actor records: use them this frame only.
+function FieldView.actorList(game)
+  local out = actorEntries
+  for i = actorEntryCount, 1, -1 do out[i] = nil end
+  actorEntryCount = 0
+  local camX, camY = FieldView._camX, FieldView._camY
+  if FieldView.hideActors or not camX then return out end
+  local mapDef = resolveMapDef(game, currentMapId(game))
+  if not mapDef then return out end
+  local px, py, facing, walkPhase, stepFlip, _, playerYOff, playerXOff = playerPixels(game)
+  playerYOff = playerYOff or 0
+  local under, over = collectGame3Actors(game, mapDef, camX, camY, px, py, facing,
+    walkPhase, stepFlip, playerYOff, playerXOff or 0)
+  local function add(a, isOver)
+    local lift = 0
+    if a.kind == "player" then
+      lift = -playerYOff
+    elseif a.eventObject then
+      lift = -(a.eventObject.raiseY or 0)
+    end
+    actorEntryCount = actorEntryCount + 1
+    local foot = a.y + CELL
+    out[actorEntryCount] = {
+      x = a.x + CELL / 2, y = foot, ground = foot + lift,
+      over = isOver, kind = a.kind, sortY = a.sortY or a.y,
+      draw = function(ox, oy) drawActorAt(game, mapDef, a, ox, oy) end,
+    }
+  end
+  for _, a in ipairs(under or {}) do add(a, false) end
+  for _, a in ipairs(over or {}) do add(a, true) end
+  return out
+end
+
 --- Collect visible tile draws grouped by palette slot for batched GbcPalette.with.
 local tile_draw_pool, tile_draw_count, tile_draw_slots = {}, 0, {}
 
@@ -914,6 +979,9 @@ function FieldView.trimNative(NativeTileset, Map, pair, visiblePairs)
   local keep, busy = {}, {}
   keep[pair] = true
   for p in pairs(visiblePairs or {}) do keep[p] = true end
+  -- and what a world render pipeline drew from (src/core/game3/world_pipeline.lua)
+  local WorldPipeline = package.loaded["src.core.game3.world_pipeline"]
+  for p in pairs(WorldPipeline and WorldPipeline.pinned or {}) do keep[p] = true end
   local x0, y0, x1, y1
   if Map.warmRect then x0, y0, x1, y1 = Map.warmRect() end
   for _, entry in ipairs(Map.world or {}) do
@@ -1700,6 +1768,10 @@ function FieldView.draw(game, canvasW, canvasH, opts)
   canvasH = canvasH or Display.H
   opts = opts or {}
 
+  -- forgotten until this draw places a camera, so nothing downstream reads
+  -- last frame's when the field draws no map this frame
+  if not opts.actorsOnly then FieldView._camX, FieldView._camY = nil, nil end
+
   local SeagallopUi = modSeagallop()
   if SeagallopUi and SeagallopUi.isActive and SeagallopUi.isActive() then
     love.graphics.setColor(0, 0, 0, 1)
@@ -1771,6 +1843,9 @@ function FieldView.draw(game, canvasW, canvasH, opts)
   FieldView._billboard = opts.billboard
     and { vw = canvasW, vh = canvasH } or nil
   FieldView._viewW, FieldView._viewH = canvasW, canvasH
+  -- the camera this frame's field was drawn with (shop framing and pans
+  -- included), so a compositor drawing after it agrees on where things are
+  FieldView._camX, FieldView._camY = camX, camY
 
   if not opts.actorsOnly then
     local Map = package.loaded["src.core.game3.map"]

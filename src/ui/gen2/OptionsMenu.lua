@@ -604,16 +604,20 @@ local function pipelineRows()
   local rows = {}
   for _, entry in ipairs(Pipelines.list()) do
     local id = entry.id
-    rows[#rows + 1] = {
-      id = "pipeline:" .. id, port = true,
-      label = entry.def.label or id:upper(),
-      cycle = function(options, delta)
-        Pipelines.cycle(id, delta)
-        Pipelines.syncOptions(options)
-        require("src.render.Tilt").setLevel(options.tilt or 0)
-      end,
-      text = function() return Strings(Pipelines.levelLabel(id)) end,
-    }
+    -- a drawWorld written only for another generation's world has nothing
+    -- to do on Gold
+    if not Pipelines.inert(id) then
+      rows[#rows + 1] = {
+        id = "pipeline:" .. id, port = true,
+        label = entry.def.label or id:upper(),
+        cycle = function(options, delta)
+          Pipelines.cycle(id, delta)
+          Pipelines.syncOptions(options)
+          require("src.render.Tilt").setLevel(options.tilt or 0)
+        end,
+        text = function() return Strings(Pipelines.levelLabel(id)) end,
+      }
+    end
   end
   return rows
 end

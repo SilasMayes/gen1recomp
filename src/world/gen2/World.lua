@@ -12185,6 +12185,7 @@ function World:drawPipeline(id, w, h, s)
   local G = love.graphics
   local cam = self.camera
   local ctx = {
+    generation = 2,
     state = self, cam = cam,
     vw = self.viewW, vh = self.viewH,
     -- No BG-only shake here: World:draw slides the whole frame through

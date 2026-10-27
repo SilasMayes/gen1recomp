@@ -158,6 +158,7 @@ tests/engine/game3_teachy_fade_2891.lua
 tests/engine/game3_teachy_walk_text_2890.lua
 tests/engine/game3_tent_save_reload_2638.lua
 tests/engine/game3_tilt_roof_2765.lua
+tests/engine/game3_world_pipeline_test.lua
 tests/engine/game3_tm_case_disc_bank_3061.lua
 tests/engine/game3_trainer_sight_test.lua
 tests/engine/game3_wailmer_pail_2697_test.lua

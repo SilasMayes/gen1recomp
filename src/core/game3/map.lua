@@ -363,7 +363,10 @@ function Map.overscanSlices()
   return slices
 end
 
-local function fromNeighbor(n, nx, ny, primaryPair)
+local function midOf(L, x, y) return L:midAt(x, y) end
+local function cellOf(L, x, y) return L:cellAt(x, y) end
+
+local function fromNeighbor(n, nx, ny, primaryPair, read)
   if not n or not n.def then return nil end
   local L = n.def.midLayout
   if not L then return nil end
@@ -371,10 +374,10 @@ local function fromNeighbor(n, nx, ny, primaryPair)
     return nil
   end
   local pair = L.pair or n.def.pair
-  return L:midAt(nx, ny), pair or primaryPair
+  return (read or midOf)(L, nx, ny), pair or primaryPair
 end
 
-local function fromDir(list, dir, cx, cy, w, h, primaryPair)
+local function fromDir(list, dir, cx, cy, w, h, primaryPair, read)
   for i = #list, 1, -1 do
     local n = list[i]
     if n.dir == dir and n.def and n.def.midLayout then
@@ -390,7 +393,7 @@ local function fromDir(list, dir, cx, cy, w, h, primaryPair)
       else
         nx, ny = cx - w, cy - offset
       end
-      local mid, pair = fromNeighbor(n, nx, ny, primaryPair)
+      local mid, pair = fromNeighbor(n, nx, ny, primaryPair, read)
       if mid ~= nil then return mid, pair end
     end
   end
@@ -439,6 +442,52 @@ function Map.worldMidAt(cx, cy, primaryDef)
   end
 
   return layout:midAt(cx, cy), primaryPair, true
+end
+
+--- worldMidAt's twin for callers that need the whole cell: returns the
+-- layout cell ({ mid, coll, elev }, read-only -- it may be the layout's own
+-- row), the pair it samples and the void flag, resolved in exactly the order
+-- worldMidAt uses.  A world render pipeline reads collision and elevation
+-- through this to shape the map (src/core/game3/world_pipeline.lua).
+function Map.worldCellAt(cx, cy, primaryDef)
+  local layout = primaryDef and primaryDef.midLayout
+  if not layout then return nil, nil end
+  local w, h = layout.width or 0, layout.height or 0
+  local primaryPair = layout.pair or primaryDef.pair
+
+  if cx >= 0 and cy >= 0 and cx < w and cy < h then
+    return layout:cellAt(cx, cy), primaryPair
+  end
+
+  local list = Map.neighborList or {}
+
+  if cy < 0 then
+    local cell, pair = fromDir(list, "north", cx, cy, w, h, primaryPair, cellOf)
+    if cell ~= nil then return cell, pair end
+  elseif cy >= h then
+    local cell, pair = fromDir(list, "south", cx, cy, w, h, primaryPair, cellOf)
+    if cell ~= nil then return cell, pair end
+  end
+
+  if cx < 0 then
+    local cell, pair = fromDir(list, "west", cx, cy, w, h, primaryPair, cellOf)
+    if cell ~= nil then return cell, pair end
+  elseif cx >= w then
+    local cell, pair = fromDir(list, "east", cx, cy, w, h, primaryPair, cellOf)
+    if cell ~= nil then return cell, pair end
+  end
+
+  for _, entry in ipairs(Map.world) do
+    local L = entry.def ~= primaryDef and entry.def and entry.def.midLayout
+    if L then
+      local nx, ny = cx - entry.ox, cy - entry.oy
+      if nx >= 0 and ny >= 0 and nx < (L.width or 0) and ny < (L.height or 0) then
+        return L:cellAt(nx, ny), L.pair or entry.def.pair or primaryPair
+      end
+    end
+  end
+
+  return layout:cellAt(cx, cy), primaryPair, true
 end
 
 --- Ensure mapDef.midLayout is bound (lazy; Dataset.hydrate usually did this).

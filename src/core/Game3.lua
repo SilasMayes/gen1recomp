@@ -899,6 +899,9 @@ function Game3:_hotkey(key)
     if self:zoomGateOK() then
       local Tilt = lazyReq("src.render.Tilt")
       Tilt.cycle()
+      if Tilt.level > 0 then
+        lazyReq("src.render.Pipelines").yieldToTilt(self.options)
+      end
       if type(self.options) == "table" then
         self.options.tilt = Tilt.level
         self:writeOptions()

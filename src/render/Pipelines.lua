@@ -42,18 +42,76 @@ Pipelines.DEFAULT_LEVELS = { "OFF", "ON" }
 -- default -- Game.data is that very table -- and install() lets a headless
 -- caller (the SDK harness, a tool) point this at a dataset of its own.
 local source = Data
-local worldPass = true
 
-function Pipelines.install(data)
+-- The generation whose world pass is running: 3 on a Gen 3 dataset, the
+-- number the boot passes otherwise, nil when nobody said (the Gen 1 boot
+-- singleton, a headless caller).  It decides which drawWorld records can be
+-- served, because the world ctx is not one shape: Gen 1 and Gen 2 share one
+-- (src/world/OverworldController.lua, src/world/gen2/World.lua) and Gen 3
+-- hands over its own (src/core/game3/world_pipeline.lua).
+local generation = nil
+
+function Pipelines.install(data, gen)
   source = data or Data
   local Schemas = require("src.mods.Schemas")
-  worldPass = not Schemas.isGen3Data(source)
+  if Schemas.isGen3Data(source) then
+    generation = 3
+  else
+    generation = tonumber(gen)
+  end
   Pipelines.reset()
 end
 
-local function inert(def)
-  return not worldPass and def.drawWorld ~= nil and def.present == nil
-    and def.worldPresent == nil
+function Pipelines.generation()
+  return generation
+end
+
+local function lists(list, n)
+  for _, v in ipairs(list) do
+    if v == n then return true end
+  end
+  return false
+end
+
+-- Whether this boot's world pass can hand `def` a ctx it understands.  A
+-- record that names no generations is the shape every world pipeline had
+-- before Gen 3 grew a world seam: the Gen 1 / Gen 2 ctx, and nothing on
+-- Gen 3.  `generations = { 3 }` opts into the Gen 3 ctx.  An unnamed
+-- non-Gen-3 boot is served by either of the shared generations.
+-- `gen` overrides the boot's generation for a caller that already knows
+-- which world it is asking about (the Gen 3 options menu).
+local function servesWorld(def, gen)
+  if not (def and def.drawWorld) then return false end
+  gen = gen or generation
+  local list = type(def.generations) == "table" and def.generations or nil
+  if not list then return gen ~= 3 end
+  if gen then return lists(list, gen) end
+  return lists(list, 1) or lists(list, 2)
+end
+
+-- A drawWorld-only record this boot cannot serve: it has nothing else to
+-- do, so it never takes a level, a row or a hotkey.
+local function inert(def, gen)
+  return def.drawWorld ~= nil and def.present == nil
+    and def.worldPresent == nil and not servesWorld(def, gen)
+end
+
+function Pipelines.servesWorld(id, gen)
+  return servesWorld(Pipelines.get(id), gen)
+end
+
+-- Whether an options menu should offer `id` at all: on this boot, or on
+-- generation `gen` when the menu belongs to one.
+function Pipelines.offered(id, gen)
+  local def = Pipelines.get(id)
+  if not def or inert(def, gen) then return false end
+  if def.present or servesWorld(def, gen) then return true end
+  -- what is left is a world post-process, which only ever runs over some
+  -- pipeline's world: worth a row only where one of those can run
+  for _, entry in ipairs(Pipelines.list()) do
+    if servesWorld(entry.def, gen) then return true end
+  end
+  return false
 end
 
 -- ------- catalog
@@ -182,12 +240,14 @@ end
 -- pipelines (post-processes) compose with tilt and are left alone.
 local function excludeTilt(id, level)
   local def = Pipelines.get(id)
-  if not (def and def.drawWorld) or level <= 0 then return end
+  -- only a world this boot actually serves competes with tilt; a drawWorld
+  -- written for another generation's ctx never runs here
+  if not servesWorld(def) or level <= 0 then return end
   local Tilt = require("src.render.Tilt")
   if Tilt.level > 0 then Tilt.setLevel(0) end
   -- one world pipeline at a time, for the same reason
   for _, entry in ipairs(Pipelines.list()) do
-    if entry.id ~= id and entry.def.drawWorld and Pipelines.level(entry.id) > 0 then
+    if entry.id ~= id and servesWorld(entry.def) and Pipelines.level(entry.id) > 0 then
       levels[entry.id] = 0
     end
   end
@@ -203,6 +263,25 @@ function Pipelines.setLevel(id, level)
   levels[id] = level
   excludeTilt(id, level)
   return level
+end
+
+-- The other direction of the rule above: TILT switched on switches off every
+-- world pipeline this boot serves, and the saved options follow when given.
+function Pipelines.yieldToTilt(opts)
+  for _, entry in ipairs(Pipelines.list()) do
+    if servesWorld(entry.def) and Pipelines.level(entry.id) > 0 then
+      levels[entry.id] = 0
+    end
+  end
+  if type(opts) == "table" then Pipelines.syncOptions(opts) end
+end
+
+-- Whether a record can do nothing at all on this boot (a drawWorld-only
+-- record written for another generation's world): such a record gets no
+-- options row.
+function Pipelines.inert(id)
+  local def = Pipelines.get(id)
+  return def == nil or inert(def)
 end
 
 -- Advance the ladder and wrap to OFF, the shape every display hotkey walks.
@@ -227,7 +306,7 @@ function Pipelines.syncOptions(opts)
   end
   for _, entry in ipairs(Pipelines.list()) do
     bucket[entry.id] = Pipelines.level(entry.id)
-    if worldPass and entry.def.drawWorld and Pipelines.level(entry.id) > 0 then
+    if servesWorld(entry.def) and Pipelines.level(entry.id) > 0 then
       opts.tilt = 0
     end
   end
@@ -251,7 +330,7 @@ function Pipelines.applyOptions(opts)
     -- list() is priority order, so the first world pipeline with a stored
     -- level is the one that wins; the rest restore to OFF rather than
     -- sitting on a level that can never render
-    if worldPass and entry.def.drawWorld and level > 0 then
+    if servesWorld(entry.def) and level > 0 then
       if world then level = 0 else world = entry.id end
     end
     levels[entry.id] = level
@@ -311,9 +390,8 @@ end
 -- flat/tilt draw.  Highest priority wins; the exclusion rules above mean
 -- there is normally only one candidate anyway.
 function Pipelines.worldPipeline()
-  if not worldPass then return nil end
   for _, entry in ipairs(Pipelines.list()) do
-    if entry.def.drawWorld and Pipelines.eligible(entry.id) then
+    if servesWorld(entry.def) and Pipelines.eligible(entry.id) then
       return entry.id, entry.def
     end
   end
@@ -404,22 +482,24 @@ function Pipelines.rows(game)
   local rows = {}
   for _, entry in ipairs(Pipelines.list()) do
     local id = entry.id
-    rows[#rows + 1] = {
-      id = "pipeline:" .. id,
-      label = entry.def.label or id:upper(),
-      value = function() return Pipelines.levelLabel(id) end,
-      step = function(g, dir)
-        Pipelines.cycle(id, dir)
-        local opts = g and g.save and g.save.options
-        if opts then
-          Pipelines.syncOptions(opts)
-          -- the exclusion above may have switched tilt off; keep the live
-          -- module in step with the option it just wrote
-          require("src.render.Tilt").setLevel(opts.tilt or 0)
-        end
-        return true
-      end,
-    }
+    if not inert(entry.def) then
+      rows[#rows + 1] = {
+        id = "pipeline:" .. id,
+        label = entry.def.label or id:upper(),
+        value = function() return Pipelines.levelLabel(id) end,
+        step = function(g, dir)
+          Pipelines.cycle(id, dir)
+          local opts = g and g.save and g.save.options
+          if opts then
+            Pipelines.syncOptions(opts)
+            -- the exclusion above may have switched tilt off; keep the live
+            -- module in step with the option it just wrote
+            require("src.render.Tilt").setLevel(opts.tilt or 0)
+          end
+          return true
+        end,
+      }
+    end
   end
   return rows
 end

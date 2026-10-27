@@ -749,6 +749,69 @@ Three rules worth knowing:
 Returning `nil` from `drawWorld` is a normal answer meaning "not this
 frame"; the engine draws the vanilla world instead.
 
+### On Gen 3
+
+Ruby, Sapphire, Emerald, FireRed and LeafGreen have a world pass too, but
+the ctx is a different shape: the GBA field is a compositor of BG layers and
+OAM, so instead of lending you its renderer the engine hands you what you
+need to draw the field yourself. A `drawWorld` gets the Gen 3 ctx only when
+its record says it understands it:
+
+```lua
+mod.content.render_pipelines:register("diorama", {
+  label = "DIORAMA",
+  generations = { 3 },          -- absent means { 1, 2 }: the Gen 1/Gen 2 ctx
+  drawWorld = function(ctx) return renderHoenn(ctx) end,
+})
+```
+
+A drawWorld-only record without `generations` is inert on Gen 3 (no
+options row, no hotkey), exactly as before, so a Gen 1 diorama never
+receives a ctx it cannot read; a record that also has `present` keeps that
+half everywhere. List several generations and branch on `ctx.generation`
+(every world ctx carries it: 1, 2 or 3) to ship one renderer for all of
+them. Gold names its generation, so a record listing only `{ 3 }` or only
+`{ 1 }` gets no row there; a Red, Blue or Yellow boot serves any record
+that lists 1 or 2, since those two share one ctx shape. `worldPresent`
+passes run over whichever world ran and receive its ctx.
+
+| ctx field | what it is |
+| --- | --- |
+| `generation`, `version` | `3`, and the cart (`"emerald"`, `"firered"`, ...) |
+| `level` | the pipeline's ladder level |
+| `width`, `height` | the canvas to return, in framebuffer pixels: make it with `dpiscale = 1` |
+| `scale` | framebuffer pixels per world pixel in the flat field (survey zoom included) |
+| `vw`, `vh`, `cam.x`, `cam.y` | the flat field's view in world pixels and its top-left corner |
+| `flat` | the finished 2D field, `vw` x `vh` - a fallback, an inset, a minimap |
+| `mirrored` | true where the composite mirrors a world override (LÖVE 12 on iOS): mirror your own 2D drawing about the canvas height there |
+| `mapType`, `outdoors` | the cart's `MAP_TYPE_*` number, and whether pret counts it as outdoors |
+| `mapId`, `world()` | the current map, and every placed map as `{ id, ox, oy, width, height, revision }` (offsets in cells; `revision` changes on every metatile write) |
+| `player` | `{ x, y, ground, lift, cellX, cellY, facing, elevation, surfing, biking, moving }`; `x, y` is the foot in world pixels |
+| `cell(cx, cy)` | `mid, pair, coll, elev, behavior, void` for any cell in current-map space, connected maps stitched in and the VOID FILL option (`voidMode`) applied; `behavior` is a name such as `"TALL_GRASS"`, and a cell BLACK blanks has no `mid` |
+| `walkable(coll)` | whether a collision byte can be walked on |
+| `atlas(pair)` | the ROM-baked 16x16 metatile atlas for a tileset pair: `{ image, overImage, imageData, width, height, slot(mid), origin(mid), coverage(mid) }`, or `nil` while the pair is not resident (asking queues it on the asset stream, never loads it on the frame's time). `overImage` is the layer that covers actors; `coverage` is how much of it a metatile fills, 0..1; `imageData` is the under layer's pixels on the CPU, read-only. Re-read `image` each frame - tile animation swaps it. Pairs a pipeline asks for stay resident while it runs |
+| `actors()` | this frame's actors in draw order (collected once per frame): `{ x, y, ground, over, kind, draw(ox, oy) }`. `x, y` is the bottom centre of the 16px cell the entry is drawn against. `draw` renders the actor through the vanilla path with that point on `(ox, oy)` of the bound canvas, so player, NPCs, the follower, field effects and mod actors all work unchanged |
+| `door()` | the door animation playing, `{ cx, cy, x, y, draw(ox, oy) }`, or `nil` |
+| `flashRadius()` | the lit radius in world pixels while Flash darkness is up, else `nil` |
+| `drawWeather(scale, w, h)` | the weather's sprites over the bound canvas in screen space, in the current transform |
+
+Rules particular to Gen 3:
+
+- **The flat field still draws first, every frame.** It is where the
+  field's per-frame bookkeeping lives and it is what shows whenever your
+  pipeline returns `nil` or throws. You replace its image; you never have
+  to recreate what it does.
+- **Transitions are drawn on the flat field**, so the pipeline sits out
+  battle transitions, the barn-door wipe and BG mosaic, as TILT does.
+  Screen fades land on top of your image like any other frame.
+- **`actors()` and `door()` entries are good for the frame they came from.**
+- **Return a canvas the right way up under LÖVE 11.** The engine mirrors a
+  world override where LÖVE 12 flips canvases (iOS), the same convention
+  Gen 1 pipelines follow; `ctx.mirrored` says when, so 2D drawn into the
+  canvas after the 3D pass can be mirrored to match.
+
+`tests/engine/game3_world_pipeline_test.lua` pins this contract.
+
 ## Variable-size overworld sprites
 
 The `sprites` registry keeps the vanilla 16x16 grounded walker as its default,

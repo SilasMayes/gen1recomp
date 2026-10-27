@@ -3150,6 +3150,12 @@ R.render_pipelines = {
     -- (ctx) -> canvas | nil: render the world.  nil falls back to the
     -- vanilla flat/tilt draw for this frame.
     drawWorld = f.opt(f.fn),
+    -- which generations' world ctx drawWorld understands.  Absent is the
+    -- shape every pipeline had before Gen 3 grew a world seam: Gen 1 and
+    -- Gen 2 share one ctx, and Gen 3 serves nothing.  { 3 } opts into the
+    -- Gen 3 ctx (src/core/game3/world_pipeline.lua); list several and
+    -- branch on ctx.generation, which every world ctx carries.
+    generations = f.opt(f.list(f.num)),
     -- (canvas, ctx) -> canvas: post-process the WORLD image, before the UI
     -- composites over it -- a depth-of-field or colour grade that must not
     -- touch the dialog boxes and menus sitting on top.  Only runs when some
@@ -3170,6 +3176,19 @@ R.render_pipelines = {
     if value.drawWorld == nil and value.present == nil
         and value.worldPresent == nil then
       return "a render pipeline needs drawWorld, worldPresent or present"
+    end
+    if value.generations ~= nil then
+      if value.drawWorld == nil then
+        return "generations only describes drawWorld; this record has none"
+      end
+      if value.generations[1] == nil then
+        return "generations is empty; leave it out for the Gen 1 / Gen 2 default"
+      end
+      for _, g in ipairs(value.generations) do
+        if g ~= 1 and g ~= 2 and g ~= 3 then
+          return "generations lists " .. tostring(g) .. "; expected 1, 2 or 3"
+        end
+      end
     end
   end,
   -- A pipeline callback fails at play time, long after the load phase has

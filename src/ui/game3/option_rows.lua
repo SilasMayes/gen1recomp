@@ -224,7 +224,9 @@ local function buildRows(ctx, skip)
   local Pipelines = require("src.render.Pipelines")
   for _, entry in ipairs(Pipelines.list()) do
     local id = entry.id
-    if entry.def.present then
+    -- post-processes, plus world pipelines that opted into the Gen 3 ctx
+    -- (generations = { 3 }); a Gen 1 / Gen 2 world renderer is not offered
+    if Pipelines.offered(id, 3) then
       add({
         id = "pipeline:" .. id,
         label = Strings(entry.def.label or id:upper()),
@@ -357,6 +359,11 @@ local function buildRows(ctx, skip)
       local v = ((tonumber(c.options.tilt) or 0) + (dir < 0 and -1 or 1)) % n
       c.options.tilt = (v + n) % n
       Tilt.setLevel(c.options.tilt)
+      -- TILT and a world render pipeline are two answers to the same
+      -- question, as on Gen 1 (src/ui/OptionsMenu.lua)
+      if c.options.tilt > 0 then
+        require("src.render.Pipelines").yieldToTilt(c.options)
+      end
       return true
     end,
   })

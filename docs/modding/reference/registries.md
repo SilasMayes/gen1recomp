@@ -1468,6 +1468,7 @@ A write here is dropped and reported on a Gen 3 boot.
 | `available` | function | no |
 | `drawWorld` | function | no |
 | `gate` | function | no |
+| `generations` | list of number | no |
 | `hotkey` | string | no |
 | `invalidate` | function | no |
 | `label` | string | yes |

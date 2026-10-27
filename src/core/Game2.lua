@@ -1247,7 +1247,9 @@ function Game2:load(opts)
   -- the player left in options.pipelines.  Both after the merge, so a mod's
   -- pipeline record is already in data.render_pipelines when either reads it.
   local Pipelines = require("src.render.Pipelines")
-  Pipelines.install(self.data)
+  -- 2: the world ctx World:drawPipeline builds, so a record that names its
+  -- `generations` is served here only when it lists Gen 2
+  Pipelines.install(self.data, 2)
   Pipelines.applyOptions(self.options)
   -- Both halves run on Gold now: `present` folds over the composite in
   -- Game2:draw, `drawWorld` owns the world pass in World:drawPipeline.  So a
