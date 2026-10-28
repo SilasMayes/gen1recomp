@@ -1,0 +1,35 @@
+-- Sharing metadata (25-community-and-ecosystem.md 3.2).  Read by tooling
+-- and the manager detail pane; never by the loader's merge.
+return {
+  summary = "The Hoenn overworld as a 3D diorama, built from your ROM's own metatiles.",
+  author = "Silas",
+  tags = { "graphics", "3d", "overworld", "display-mode" },
+  differences = {
+    changed = { "the overworld can be drawn in 3D (DIORAMA: OFF / 45 / 35 / 25)" },
+    added = {
+      "DIORAMA display mode on the OPTION menu and the 6 key",
+      "mod options: STRUCTURE HEIGHT, GRASS TUFTS, SHADOWS, TERRAIN HEIGHT and BUILDING PROFILE",
+      "a building profile: 11 drawings read by hand (houses, the Center, the Mart, the Gym, Birch's lab, Route 104's shop and cottage), built from that reading wherever they stand",
+      "buildings as solids with hipped roofs at their real depth, two-storey houses with their upper storey, and sun shadows",
+      "terrain at its real levels: mountains, terraces, cliffs and beaches counted off the General tileset's pieces",
+    },
+    known = {
+      "needs the engine's Gen 3 world render pipeline (src/core/game3/world_pipeline.lua)",
+      "mountains drawn with a town's own rock (Route 112, Route 115, Mt Chimney, Jagged Pass) stay flat, their cliffs as blocks",
+      "a ledge is a low step, not a drop",
+      "a dome, chimney or vent is painted on the roof; only an upper storey drawn as a band of wall is modelled",
+      "a listed building is built from whole cells across: inset walls and cut corners are read but not built",
+      "woods drawn with a town's own trees (Fortree, Mossdeep) stand as blocks",
+      "battle transitions, the barn-door wipe and BG mosaic play on the flat field",
+      "water reflections and the Poké Center heal machine animation are not drawn in 3D",
+      "cut-out trees, signs and walls are copies: a standing tile the ROM animates keeps one frame",
+      "in rooms, furniture the game does not tag (beds, tables, crates) is a low block, whatever its real height",
+    },
+  },
+  credits = {
+    { who = "Emerald 3DS (ZallaxDev/emerald-3ds, MIT)", for_ = "the approach its voxel overworld settled on: the drawing as an oblique projection, buildings at real depth with hipped roofs, sides from a plain stretch, rooms and map borders, and terrain levels counted off the General tileset's mountain pieces (its tile-role tables)" },
+    { who = "pret/pokeemerald", for_ = "metatile layer types, elevations and behaviors the shapes are read from" },
+    { who = "Dramatic Shape Voxel Mod", for_ = "the idea of a hand-written profile over the automatic reading (no code or data used)" },
+  },
+  compat = { engine = ">=0.0.0-0 <2.0.0", modApi = 2 },
+}

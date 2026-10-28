@@ -1,0 +1,17 @@
+{
+  "id": "hoenn_diorama",
+  "name": "Hoenn Diorama",
+  "version": "1.7.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "GRAPHICS",
+  "games": ["rse"],
+  "game_version": ">=0.0.0-0 <2.0.0",
+  "priority": 100,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "affects_link": false,
+  "description": "Draws the Ruby, Sapphire and Emerald overworld as a 3D diorama, folded out of the tile art your own ROM import already baked. Needs the engine's Gen 3 world render pipeline."
+}
