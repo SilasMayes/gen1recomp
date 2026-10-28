@@ -43,6 +43,7 @@ local PITCH = { 45, 40, 34 }          -- the ladder, degrees down from level
 local camera = Camera.new()
 local focusH                          -- the player's ground height, eased
 local ready = false
+local waited = 0
 local last = {}
 
 local function sky(ctx)
@@ -55,7 +56,13 @@ local function drawFrame(ctx)
   local change = Source.begin(ctx)
   if change == "warp" then focusH = nil; ready = false end
   Scene.frame(ctx, change)
-  if not ready and not Scene.ready(ctx) then return nil end
+  if change == "warp" then waited = 0 end
+  -- the map not read yet: the flat field shows meanwhile, for a second or
+  -- two at most (a tileset that never streams in still gets a world)
+  if not ready and not Scene.ready(ctx) then
+    waited = waited + 1
+    if waited < 120 then return nil end
+  end
 
   -- the focus: the centre of the flat field's view, at the player's height
   local u, v = Source.toAbs(ctx.cam.x + ctx.vw / 2, ctx.cam.y + ctx.vh / 2)

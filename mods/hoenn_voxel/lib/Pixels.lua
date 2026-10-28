@@ -12,13 +12,13 @@ local tiles = {}        -- pair -> layer -> mid -> tile (false: none)
 local readback = {}     -- pair -> layer -> ImageData read back off the GPU
 
 local function dataOf(view, layer)
-  if layer == "under" then return view.imageData end
-  if view.overImageData then return view.overImageData end
-  -- an engine that keeps no CPU copy of the over layer: read it back once
-  local img = view.overImage
+  if layer == "under" and view.imageData then return view.imageData end
+  if layer == "over" and view.overImageData then return view.overImageData end
+  -- an engine that keeps no CPU copy of a layer: read it back once
+  local img = layer == "under" and view.image or view.overImage
   if not img then return nil end
-  local per = readback[view.pair]
-  if not per then per = {}; readback[view.pair] = per end
+  local per = readback[view.pair .. "|" .. layer]
+  if not per then per = {}; readback[view.pair .. "|" .. layer] = per end
   local d = per[img]
   if d then return d end
   if not (love and love.graphics and love.graphics.newCanvas) then return nil end
@@ -78,8 +78,12 @@ function Pixels.key(r, g, b)
 end
 
 function Pixels.forget(pair)
-  if pair then tiles[pair] = nil; readback[pair] = nil
-  else tiles = {}; readback = {} end
+  if pair then
+    tiles[pair] = nil
+    readback[pair .. "|under"], readback[pair .. "|over"] = nil, nil
+  else
+    tiles = {}; readback = {}
+  end
 end
 
 return Pixels
