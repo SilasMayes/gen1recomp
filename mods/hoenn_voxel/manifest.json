@@ -1,0 +1,22 @@
+{
+  "id": "hoenn_voxel",
+  "name": "Hoenn Voxel",
+  "version": "0.1.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "GRAPHICS",
+  "games": [
+    "rse"
+  ],
+  "game_version": ">=0.0.0-0 <2.0.0",
+  "priority": 100,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "affects_link": false,
+  "description": "The Ruby, Sapphire and Emerald overworld in 3D, built from your ROM's own metatiles: terrain at its drawn levels, buildings from written specs, trees and signs standing. Needs the engine's Gen 3 world render pipeline.",
+  "permissions": [
+    "background"
+  ]
+}

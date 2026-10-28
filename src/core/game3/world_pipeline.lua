@@ -202,8 +202,10 @@ local function atlasView(pair, ts)
   view.image = ts.image
   view.overImage = ts.overImage
   -- the under layer's pixels on the CPU (read-only), for a pipeline that
-  -- derives art of its own from the ROM's (cut-outs, edge colours)
+  -- derives art of its own from the ROM's (cut-outs, edge colours), and the
+  -- over layer's where the pair keeps them
   view.imageData = ts.imageData
+  view.overImageData = ts.overImageData
   return view
 end
 
