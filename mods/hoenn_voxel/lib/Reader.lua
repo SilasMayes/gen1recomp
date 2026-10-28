@@ -15,6 +15,7 @@ local TD = lib("data/trees")
 local Buildings = lib("Buildings")
 local Props = lib("Props")
 local Decks = lib("Decks")
+local Cache = lib("Cache")
 
 local Reader = {}
 
@@ -30,6 +31,8 @@ end
 function Reader.gather(m)
   local cells, tiles = {}, {}
   local pair
+  local ctx = Source.ctx()
+  local indoors = ctx and ctx.outdoors == false
   for y = 0, m.height - 1 do
     for x = 0, m.width - 1 do
       local c = Source.cell(m.ax + x, m.ay + y)
@@ -49,6 +52,7 @@ function Reader.gather(m)
         local tree = (general and TD.PART[c.mid] ~= nil) or (not r.walk and not r.water and
           ((s.leafO >= 0.5 and s.cover >= 0.2) or s.leafU >= 0.45))
         cells[i] = {
+          blank = indoors and s.dark or nil,
           m = c.mid, walk = r.walk, water = r.water, ledge = r.jump ~= nil, jump = r.jump,
           bridge = r.bridge, tree = tree, berry = r.berry, mud = r.mud, warp = r.door,
           falls = r.falls, puddle = r.puddle, elev = c.elev, beh = r.beh,
@@ -113,7 +117,7 @@ local function ledgeRelief(s, jump, level)
   return nil
 end
 
-local function reliefOf(result, n, input, ridges, groundNear, mass)
+local function reliefOf(result, n, input, ridges, groundNear, mass, decks)
   local out = {}
   for i = 1, n do
     local k, top = result.kind[i], result.top[i]
@@ -128,6 +132,14 @@ local function reliefOf(result, n, input, ridges, groundNear, mass)
     if mass and mass[i] then r = Props.massRelief(mass[i], Relief) end
     if r then out[i] = r
     elseif k == "F" then out[i] = Relief.flat(top) else out[i] = Relief.piece(k, top) end
+    if decks and decks[i] then
+      -- a deck: its own record (shared flat ones are never marked), whose
+      -- steps go down only its edge's thickness
+      local d = out[i]
+      if not d.prof and d == Relief.flat(d.nw) then d = Relief.corners(d.nw, d.ne, d.sw, d.se, d.kind) end
+      d.deck = true
+      out[i] = d
+    end
   end
   return out
 end
@@ -182,15 +194,25 @@ local function finish(id, m, input, result, seconds)
     for i = 1, m.width * m.height do result.top[i] = result.top[i] + shift end
   end
   local c1 = os.clock()
-  local decks = Decks.apply(input, result)
+  local decks, under = Decks.apply(input, result)
   local info, groundNear = Trees.read(input, result)
+  -- the way beneath a deck: its ground at its own level
+  for i, level in pairs(under) do
+    local x, y = (i - 1) % m.width, math.floor((i - 1) / m.width)
+    local g = groundNear(x, y)
+    if g then
+      info[i] = info[i] or {}
+      info[i].under = { level = level, ground = g }
+    end
+  end
   local buildings = Buildings.read(input, result, input.pair, info, groundNear)
   local ridges, mass = Props.read(input, result, info, groundNear)
   if Reader.debug then print(("reader %s: count %.0fms, models %.0fms"):format(id, seconds * 1000,
     (os.clock() - c1) * 1000)) end
   Analysis.store(id, {
     width = m.width, height = m.height, input = input, terrain = result, pair = input.pair,
-    relief = reliefOf(result, m.width * m.height, input, ridges, groundNear, mass), info = info,
+    relief = reliefOf(result, m.width * m.height, input, ridges, groundNear, mass, decks),
+    info = info,
     buildings = buildings, decks = decks, seconds = seconds,
   })
   readRev[id] = m.revision
@@ -218,6 +240,7 @@ function Reader.update()
         if r.status == "ok" then
           jobs():release(p.handle)
           pending[id] = nil
+          Cache.write(p.input, r.result)
           finish(id, m, p.input, r.result, now() - p.t0)
         elseif r.status == "pending" then
           busy = true
@@ -231,7 +254,10 @@ function Reader.update()
         end
       else
         local input = Reader.gather(m)
-        if input then
+        local kept = input and not Reader.noCache and Cache.read(input)
+        if kept then
+          finish(id, m, input, kept, 0)
+        elseif input then
           local J = jobs()
           local handle
           if J and not Reader.inline then
@@ -246,7 +272,9 @@ function Reader.update()
             busy = true
           else
             local t0 = now()
-            finish(id, m, input, Terrain.solve(input, T), now() - t0)
+            local result = Terrain.solve(input, T)
+            Cache.write(input, result)
+            finish(id, m, input, result, now() - t0)
           end
         else
           busy = true      -- a tileset still streaming in

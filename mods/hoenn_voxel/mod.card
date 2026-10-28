@@ -1,0 +1,32 @@
+-- Sharing metadata (25-community-and-ecosystem.md 3.2).  Read by tooling
+-- and the manager detail pane; never by the loader's merge.
+return {
+  summary = "The Hoenn overworld in 3D, built at run time from your ROM's own metatiles.",
+  author = "Silas",
+  tags = { "graphics", "3d", "overworld", "display-mode" },
+  differences = {
+    changed = { "the overworld can be drawn in 3D (VOXEL: OFF / 45 / 40 / 34)" },
+    added = {
+      "VOXEL display mode on the OPTION menu and the 7 key",
+      "terrain at its drawn levels: mountains counted in whole levels off the General tileset's pieces, ledges as berms, cave and town rock as faces and tops",
+      "buildings found from their doors: an upright facade, a roof rising from its eave, dressed ends",
+      "trees as leaning crown cards, signs, lamps and fences standing, actors standing at their feet",
+      "decks the cart raises (Route 110's cycling road, Fortree's walkways) and bridges by their behaviour",
+      "Flash darkness and weather drawn over the 3D view",
+    },
+    known = {
+      "needs the engine's Gen 3 world render pipeline (src/core/game3/world_pipeline.lua)",
+      "every building is read the same way: a pitched roof over an upright facade; flat roofs, domes and second storeys are not modelled",
+      "furniture taller than two rows, and counters joined to a room's back wall, lie flat",
+      "a crater city (Sootopolis) reads its rock as two-level walls round level walkways",
+      "mountains drawn in a town's own rock are read as masses, not counted in levels",
+      "battle transitions, the barn-door wipe and BG mosaic play on the flat field",
+    },
+  },
+  credits = {
+    { who = "Emerald 3DS (ZallaxDev/emerald-3ds, MIT)", for_ = "the method: every drawn point at (u, h, v + h), terrain counted in whole levels off the General tileset's mountain pieces and settled by least cost, crown cards for trees; and its readings of the tileset (tile sets, rock colours, tree parts, settle prices), restated in data/" },
+    { who = "Gen2Recomped Dramatic Shapes (UNDERdecoded)", for_ = "the approach of reading the cartridge first: buildings found from their doors, decks from the elevation byte, bridges by behaviour, one place deciding every cell's height. No code of it is used" },
+    { who = "pret/pokeemerald", for_ = "the behaviour names and the layouts the local checks render (never shipped)" },
+  },
+  compat = { engine = ">=1.0.0 <2.0.0", modApi = 2 },
+}

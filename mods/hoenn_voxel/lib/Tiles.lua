@@ -87,6 +87,13 @@ local function read(pair, mid)
     s.f, s.faceLow = 0, 0
   end
   s.flat = one
+  -- drawn all in black: the dark round a room
+  local dark = true
+  for i = 1, 256 do
+    if u.a[i] == 1 and (u.r[i] > 2 or u.g[i] > 2 or u.b[i] > 2) then dark = false break end
+    if o and o.a[i] == 1 and (o.r[i] > 2 or o.g[i] > 2 or o.b[i] > 2) then dark = false break end
+  end
+  s.dark = dark
   s.cls = table.concat(cls)
   return s
 end

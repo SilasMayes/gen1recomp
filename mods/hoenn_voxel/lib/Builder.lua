@@ -185,11 +185,22 @@ local function each(pa, pb, fn)
   end
 end
 
+Builder.DECK_EDGE = 4           -- how far a deck's edge goes down under it
+
+-- a deck's side goes down its edge's thickness, not to the ground: the
+-- ground goes on under it (Emerald 3DS's thin decks)
+local function thin(hHigh, hLow, deck)
+  if deck then return math.max(hLow, hHigh - Builder.DECK_EDGE) end
+  return hLow
+end
+
 -- the west/east step at the edge x = X between cell A (west) and B (east)
 -- of row ay: A's east edge and B's west edge, polylines down the rows.
-function Builder:sideStep(a, b, ay, X, ea, eb)
+function Builder:sideStep(a, b, ay, X, ea, eb, deckA, deckB)
   local z0 = ay * CELL
   each(ea, eb, function(va, vb, ha0, ha1, hb0, hb1, higherA)
+    if higherA then hb0, hb1 = thin(ha0, hb0, deckA), thin(ha1, hb1, deckA)
+    else ha0, ha1 = thin(hb0, ha0, deckB), thin(hb1, ha1, deckB) end
     -- the quad between A's edge and B's edge over drawn rows va..vb
     local owner = higherA and a or b
     local lu = higherA and 15.5 or 0.5
@@ -204,11 +215,16 @@ end
 
 -- the step at the edge between cell A (north) and B (south) at column ax:
 -- A's south edge and B's north edge, polylines west to east.
-function Builder:rowStep(a, b, ax, ay, ea, eb)
+function Builder:rowStep(a, b, ax, ay, ea, eb, deckA, deckB)
   local Z = (ay + 1) * CELL               -- the drawn row between them
   local X0 = ax * CELL
   each(ea, eb, function(ua, ub, ha0, ha1, hb0, hb1, higherA)
     local xa, xb = X0 + ua, X0 + ub
+    if higherA and deckA then
+      -- a deck's south edge: its planks' thickness, the ground going on under
+      hb0, hb1 = thin(ha0, hb0, true), thin(ha1, hb1, true)
+    end
+    if not higherA and deckB then return end   -- the way under a deck is the deck's own
     if higherA then
       -- a drop: B's wall under A's lip, showing A's bottom rows
       local function lv(hA, hB) return math.max(0, 16 - (hA - hB)) end
@@ -243,6 +259,7 @@ function Builder:block(x0, y0, x1, y1)
   local function drawn(ax, ay)
     local c = scene.cell(ax, ay)
     if not c.mid then return c end
+    if scene.hidden and scene.hidden(ax, ay) then return { void = true } end
     local g, shade, derived
     if scene.ground then g, shade, derived = scene.ground(ax, ay, c) end
     if g then return { mid = g, pair = c.pair, ground = true, shade = shade, derived = derived } end
@@ -269,12 +286,13 @@ function Builder:block(x0, y0, x1, y1)
         local e = drawn(ax + 1, ay)
         if e.mid then
           local re = scene.relief(ax + 1, ay)
-          self:sideStep(c, e, ay, (ax + 1) * CELL, Relief.edge(r, "E"), Relief.edge(re, "W"))
+          self:sideStep(c, e, ay, (ax + 1) * CELL, Relief.edge(r, "E"), Relief.edge(re, "W"),
+            r.deck, re.deck)
         end
         local s = drawn(ax, ay + 1)
         if s.mid then
           local rs = scene.relief(ax, ay + 1)
-          self:rowStep(c, s, ax, ay, Relief.edge(r, "S"), Relief.edge(rs, "N"))
+          self:rowStep(c, s, ax, ay, Relief.edge(r, "S"), Relief.edge(rs, "N"), r.deck, rs.deck)
         end
       end
     end

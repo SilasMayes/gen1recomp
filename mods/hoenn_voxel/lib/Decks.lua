@@ -9,11 +9,15 @@
 --   * a bridge stands as high as its behaviour says (low, medium, high)
 --   * the blocked cells beside a deck, west and east, are its railings: they
 --     stand on it
+--   * where a deck crosses a way beneath it (elevation 15: walkable at both
+--     levels) it stands high enough to pass under, UNDERPASS pixels at least,
+--     and the ground goes on under it at its own level
 local lib = ...
 
 local Decks = {}
 
 Decks.MIN = 8
+Decks.UNDERPASS = 32
 Decks.DATUM = 3
 Decks.LEVEL = 16
 -- pixels a bridge's deck stands over what it crosses (Dramatic Shapes's
@@ -34,6 +38,7 @@ function Decks.apply(input, result)
     return y * w + x + 1
   end
   local lift = {}
+  local under = {}        -- cell -> the level of the way beneath the deck
   -- elevation decks
   local function deckCell(i)
     local c = cells[i]
@@ -59,7 +64,13 @@ function Decks.apply(input, result)
       for e, n in pairs(counts) do if n > best then best, elev = n, e end end
       if elev and best >= Decks.MIN then
         local px = (elev - Decks.DATUM) * Decks.LEVEL
-        for _, j in ipairs(comp) do lift[j] = px end
+        local crosses = false
+        for _, j in ipairs(comp) do if cells[j].elev == 15 then crosses = true end end
+        if crosses then px = math.max(px, Decks.UNDERPASS) end
+        for _, j in ipairs(comp) do
+          lift[j] = px
+          if cells[j].elev == 15 then under[j] = result.top[j] or 0 end
+        end
       end
     end
   end
@@ -80,8 +91,12 @@ function Decks.apply(input, result)
     end
   end
   for i, px in pairs(rail) do lift[i] = px end
+  -- every deck has the ground going on under it, at its own level
+  for i in pairs(lift) do
+    if under[i] == nil then under[i] = result.top[i] or 0 end
+  end
   for i, px in pairs(lift) do result.top[i] = (result.top[i] or 0) + px end
-  return lift
+  return lift, under
 end
 
 return Decks

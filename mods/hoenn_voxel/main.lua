@@ -36,6 +36,7 @@ local World = lib("World")
 local Actors = lib("Actors")
 local Analysis = lib("Analysis")
 local Scene = lib("Scene")
+local Overlay = lib("Overlay")
 
 local PITCH = { 45, 40, 34 }          -- the ladder, degrees down from level
 
@@ -49,7 +50,7 @@ local function sky(ctx)
   return { 0, 0, 0 }
 end
 
-local function drawWorld(ctx)
+local function drawFrame(ctx)
   if not Render.ok() then return nil end
   local change = Source.begin(ctx)
   if change == "warp" then focusH = nil; ready = false end
@@ -59,7 +60,7 @@ local function drawWorld(ctx)
   -- the focus: the centre of the flat field's view, at the player's height
   local u, v = Source.toAbs(ctx.cam.x + ctx.vw / 2, ctx.cam.y + ctx.vh / 2)
   local p = Source.player()
-  local h = Analysis.groundAt(p.x, p.ground)
+  local h = Analysis.groundAt(p.x, p.ground, p.elevation)
   if not focusH or change == "warp" then focusH = h end
   focusH = focusH + (h - focusH) * 0.2
   if math.abs(focusH - h) < 0.05 then focusH = h end
@@ -87,8 +88,36 @@ local function drawWorld(ctx)
   World.draw(list)
   Actors.draw(cards, Analysis.groundAt)
   Render.finish()
+  love.graphics.push("all")
+  love.graphics.setCanvas(canvas)
+  Overlay.draw(ctx, camera, w, hgt)
+  love.graphics.pop()
   last = { chunks = #list, tris = World.stats.tris, actors = #cards }
   return canvas
+end
+
+-- A frame that throws shows the flat field and is logged; only a pipeline
+-- that keeps throwing is handed to the engine to retire (one bad frame - a
+-- map half streamed in - should not cost the player the display mode).
+local failures = 0
+local function drawWorld(ctx)
+  local depth = love.graphics.getStackDepth and love.graphics.getStackDepth() or 0
+  local ok, out = xpcall(drawFrame, debug and debug.traceback or function(e) return e end, ctx)
+  if ok then
+    failures = 0
+    return out
+  end
+  failures = failures + 1
+  if mod.log then mod.log:warn("frame failed (%d): %s", failures, tostring(out)) end
+  -- leave the graphics state as the frame found it
+  if love.graphics.getStackDepth then
+    while love.graphics.getStackDepth() > depth do love.graphics.pop() end
+  end
+  love.graphics.setCanvas()
+  love.graphics.setShader()
+  love.graphics.setDepthMode()
+  if failures >= 30 then error(out, 0) end
+  return nil
 end
 
 mod.content.render_pipelines:register("hoenn_voxel", {

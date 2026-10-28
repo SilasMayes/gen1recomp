@@ -140,6 +140,13 @@ function Models.build(b, x0, y0, x1, y1)
   for ay = y0, y1 - 1 do
     for ax = x0, x1 - 1 do
       local info, m = Analysis.info(ax, ay)
+      if info and info.under then
+        -- the way beneath a deck, at its own level
+        local c = Source.cell(ax, ay)
+        if c.mid then
+          b:surface(c.pair, info.under.ground, "under", Relief.flat(info.under.level), ax, ay)
+        end
+      end
       if info and info.tree then
         local c = Source.cell(ax, ay)
         if c.mid then treePart(b, ax, ay, c, info, m, TREE_COT) end

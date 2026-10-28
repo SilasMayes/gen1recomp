@@ -15,7 +15,7 @@
   "optional_dependencies": [],
   "conflicts": [],
   "affects_link": false,
-  "description": "The Ruby, Sapphire and Emerald overworld in 3D, built from your ROM's own metatiles: terrain at its drawn levels, buildings from written specs, trees and signs standing. Needs the engine's Gen 3 world render pipeline.",
+  "description": "The Ruby, Sapphire and Emerald overworld in 3D, built at run time from your ROM's own metatiles: terrain at its drawn levels, buildings found from their doors, trees, signs and actors standing. Exact to the drawing at 45 degrees. Needs the engine's Gen 3 world render pipeline.",
   "permissions": [
     "background"
   ]

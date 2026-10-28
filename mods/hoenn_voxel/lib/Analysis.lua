@@ -48,6 +48,9 @@ end
 local borderMemo, borderEpoch = {}, nil
 
 local function borderRelief(ax, ay)
+  -- indoors the border is the dark round a room: it lies at the floor
+  local ctx = Source.ctx()
+  if ctx and ctx.outdoors == false then return Relief.FLAT end
   local m, cx, cy, d = nearestEdge(ax, ay)
   if not m or d > 24 then return Relief.FLAT end
   local r = results[m.id].relief[(cy - m.ay) * m.width + (cx - m.ax) + 1]
@@ -102,10 +105,35 @@ function Analysis.info(ax, ay)
   return r.info[(ay - m.ay) * m.width + (ax - m.ax) + 1], m
 end
 
+--- Whether a cell is not drawn at all (the dark round a room).
+function Analysis.hidden(ax, ay)
+  local m = Source.mapAt(ax, ay)
+  if not m then
+    local ctx = Source.ctx()
+    if ctx and ctx.outdoors == false then
+      -- the border indoors: dark, unless something is drawn there
+      local c = Source.cell(ax, ay)
+      local Tiles = lib("Tiles")
+      local s = c.mid and Tiles.get(c.pair, c.mid)
+      return s ~= nil and s.dark
+    end
+    return false
+  end
+  local r = results[m.id]
+  local c = r and r.input and r.input.cells[(ay - m.ay) * m.width + (ax - m.ax) + 1]
+  return c ~= nil and c.blank == true and c.m ~= 0
+end
+
 --- The height of the ground under a foot drawn at absolute world pixels
 -- (x, v): the cell the foot stands in, at its centre.
-function Analysis.groundAt(x, v)
+-- With an elevation (the player's), a deck's underpass answers for the way
+-- beneath it when the elevation is the ground's.
+function Analysis.groundAt(x, v, elevation)
   local ax, ay = math.floor(x / 16), math.floor((v - 0.5) / 16)
+  if elevation and elevation <= 3 then
+    local info = Analysis.info(ax, ay)
+    if info and info.under then return info.under.level end
+  end
   return Relief.at(Analysis.relief(ax, ay), 0.5, 0.5)
 end
 

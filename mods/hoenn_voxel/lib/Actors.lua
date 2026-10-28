@@ -50,7 +50,8 @@ function Actors.collect(ctx)
     if ok then
       local x, foot = Source.toAbs(e.x, e.ground or e.y)
       cards[#cards + 1] = { x = x, foot = foot, lift = (e.ground or e.y) - e.y,
-        slot = n, kind = kind or e.kind, over = e.over }
+        slot = n, kind = kind or e.kind, over = e.over,
+        elevation = (kind or e.kind) == "player" and ctx.player and ctx.player.elevation or nil }
     end
   end
   for _, e in ipairs(list) do add(e) end
@@ -65,8 +66,9 @@ function Actors.draw(cards, heightAt)
   local verts = {}
   local inv = 1 / SHEET
   for i, c in ipairs(cards) do
-    local h = heightAt(c.x, c.foot) + c.lift
-    local z = c.foot + heightAt(c.x, c.foot) + i * BIAS
+    local g = heightAt(c.x, c.foot, c.elevation)
+    local h = g + c.lift
+    local z = c.foot + g + i * BIAS
     if c.kind == "door" then z = z + 0.3 end
     local sx, sy = (c.slot % COLS) * SLOT, math.floor(c.slot / COLS) * SLOT
     local x0, x1 = c.x - AX, c.x - AX + SLOT

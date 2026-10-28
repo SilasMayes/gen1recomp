@@ -32,8 +32,10 @@ function Props.read(input, result, info, groundNear)
   local function cand(i) return i ~= nil and candidate[i] end
   local ridges = {}
   local mass = {}
-  -- the masses: components more than two rows tall and a column wide
-  do
+  -- the masses: components more than two rows tall and a column wide, on
+  -- the maps drawn with the General tileset (outdoors, caves); a building's
+  -- rooms draw their walls and furniture upright, never as rock
+  if input.general then
     local seen = {}
     for i = 1, w * h do
       if candidate[i] and not seen[i] then
@@ -50,9 +52,20 @@ function Props.read(input, result, info, groundNear)
             if cand(n) and not seen[n] then seen[n] = true; stack[#stack + 1] = n end
           end
         end
-        if y1 - y0 + 1 > 2 and x1 > x0 then
-          local inComp = {}
-          for _, j in ipairs(comp) do inComp[j] = true end
+        local inComp = {}
+        for _, j in ipairs(comp) do inComp[j] = true end
+        -- a mass is solid: some cell of it has the mass on all four sides
+        -- (a ring of fence posts, a line of rocks round a pool, is not one)
+        local solid = false
+        for _, j in ipairs(comp) do
+          local x, y = (j - 1) % w, math.floor((j - 1) / w)
+          if inComp[at(x - 1, y)] and inComp[at(x + 1, y)] and inComp[at(x, y - 1)]
+              and inComp[at(x, y + 1)] then
+            solid = true
+            break
+          end
+        end
+        if y1 - y0 + 1 > 2 and x1 > x0 and solid then
           for _, j in ipairs(comp) do
             local x, y = (j - 1) % w, math.floor((j - 1) / w)
             local d = 1
@@ -75,10 +88,17 @@ function Props.read(input, result, info, groundNear)
       local run = bottom - top + 1
       local side = cand(at(x - 1, y)) or cand(at(x + 1, y))
       local g = groundNear(x, y)
+      -- in a building's rooms a tall run is furniture against the wall:
+      -- it stands in pieces of two rows, each on its own lowest row
+      local piece = bottom
+      if run >= 3 and not input.general then
+        piece = bottom - 2 * math.floor((bottom - y) / 2)
+        run = 2
+      end
       if run >= 3 and not side then
         ridges[i] = true
       elseif run <= 2 and g and not (input.waterMid and input.waterMid[g]) then
-        info[i] = { prop = true, base = bottom, ground = g, level = result.top[i] }
+        info[i] = { prop = true, base = piece, ground = g, level = result.top[i] }
         -- a roof-covered walkable head over the column's top
         local n = at(x, top - 1)
         if y == top and n and cells[n].walk and not info[n] and not cells[n].water then

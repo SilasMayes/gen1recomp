@@ -60,6 +60,8 @@ end
 
 function Derived.size() return SIZE end
 
+function Derived.pages() return #pages end
+
 --- The page's image, uploaded if anything was painted since.
 function Derived.image(n)
   local p = pages[n]
@@ -91,17 +93,22 @@ end
 --- A metatile's two layers merged, the pixels that match `ground` (another
 -- metatile of the pair: what the drawing was laid over) cleared.  nil while
 -- the pair streams in.
-function Derived.cutout(pair, mid, ground)
-  local key = "cut|" .. pair .. "|" .. mid .. "|" .. tostring(ground)
+function Derived.cutout(pair, mid, ground, dark)
+  local key = "cut|" .. pair .. "|" .. mid .. "|" .. tostring(ground) .. (dark and "|d" or "")
   return Derived.slot(key, function(set)
     local u = Pixels.tile(pair, mid, "under")
     local o = Pixels.tile(pair, mid, "over")
     local g = ground and Pixels.tile(pair, ground, "under")
     if not u then return false end
+    local function black(t, i) return dark and t.r[i] <= 1 and t.g[i] <= 1 and t.b[i] <= 1 end
     for i = 1, 256 do
       local x, y = (i - 1) % 16, math.floor((i - 1) / 16)
-      if o and o.a[i] == 1 then
+      if o and o.a[i] == 1 and black(o, i) then
+        set(x, y, 0, 0, 0, 0)
+      elseif o and o.a[i] == 1 then
         set(x, y, o.r[i] / 31, o.g[i] / 31, o.b[i] / 31, 1)
+      elseif u.a[i] == 1 and black(u, i) then
+        set(x, y, 0, 0, 0, 0)
       elseif u.a[i] == 1 and not (g and g.r[i] == u.r[i] and g.g[i] == u.g[i] and g.b[i] == u.b[i]) then
         local r, gg, b = rgb(u, i)
         set(x, y, r, gg, b, 1)

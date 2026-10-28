@@ -23,6 +23,7 @@ World.configure({
   version = Analysis.version,
   ground = Models.ground,
   stamp = function() return Analysis.stamp end,
+  hidden = Analysis.hidden,
   models = Models.build,
 })
 
@@ -30,6 +31,11 @@ function Scene.frame(ctx, change)
   if change == "warp" then
     Analysis.forget()
     Reader.forget()
+    -- the pixels read for the maps left behind (read again when needed) and,
+    -- once they have grown, the derived pages (every block is dropped on a
+    -- warp, so nothing still points into them)
+    lib("Pixels").forget()
+    if lib("Derived").pages() > 3 then lib("Derived").flush() end
   end
   -- read every map that came into view
   Reader.update()
